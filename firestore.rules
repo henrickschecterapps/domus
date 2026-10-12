@@ -1,0 +1,23 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Matches house document and its subcollections
+    match /houses/{houseId} {
+      // Anyone with the invite code can view the house to join
+      allow read: if true;
+      allow create: if true;
+      allow update: if true; // In production, refine: if isAuthenticated() && request.auth.uid in resource.data.members
+
+      // Subcollections within a house (rooms, chores, pets, pantry, expenses, events)
+      match /{allChildren=**} {
+        allow read, write: if true; // Local-first household model
+      }
+    }
+  }
+}

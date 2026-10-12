@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   House,
   HouseEvent,
@@ -33,6 +33,8 @@ import {
   calculateXpReward,
 } from '../utils/cleaningMath';
 import { fireCelebrationConfetti } from '../utils/confetti';
+import { isFirebaseConfigured } from '../services/firebase';
+import { syncFullHouseToFirestore, subscribeToCloudHouse } from '../services/firestoreSync';
 
 interface ToastNotification {
   id: string;
@@ -109,6 +111,8 @@ interface AppContextType {
   resetAllToSeed: () => void;
   theme: 'dark' | 'light' | 'system';
   setTheme: (theme: 'dark' | 'light' | 'system') => void;
+  isFirebaseConnected: boolean;
+  syncToCloudNow: () => Promise<boolean>;
 }
 
 const STORAGE_KEY_PREFIX = 'domus_pwa_';
@@ -252,6 +256,90 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { saveToStorage('shopping', shoppingItems); }, [shoppingItems]);
   useEffect(() => { saveToStorage('expenses', expenses); }, [expenses]);
   useEffect(() => { saveToStorage('events', events); }, [events]);
+
+  // Real-time Cloud Synchronization (Firebase Firestore)
+  const isCloudSyncSuppressedRef = useRef(false);
+  const lastCloudSyncTimestampRef = useRef(0);
+
+  // 1. Inbound: Subscribe to Cloud Updates if Firebase is configured
+  useEffect(() => {
+    if (!isFirebaseConfigured || !house?.id) return;
+
+    const unsubscribe = subscribeToCloudHouse(house.id, (remoteData) => {
+      if (remoteData.updatedAt && remoteData.updatedAt <= lastCloudSyncTimestampRef.current) return;
+
+      isCloudSyncSuppressedRef.current = true;
+      if (remoteData.house) setHouse(remoteData.house);
+      if (Array.isArray(remoteData.members)) setMembers(remoteData.members);
+      if (Array.isArray(remoteData.rooms)) setRooms(remoteData.rooms);
+      if (Array.isArray(remoteData.chores)) setChores(remoteData.chores);
+      if (Array.isArray(remoteData.choreLogs)) setChoreLogs(remoteData.choreLogs);
+      if (Array.isArray(remoteData.pets) && remoteData.pets.length > 0) {
+        setPets(remoteData.pets);
+        if (remoteData.selectedPetId) setSelectedPetId(remoteData.selectedPetId);
+      }
+      if (Array.isArray(remoteData.pantryItems)) setPantryItems(remoteData.pantryItems);
+      if (Array.isArray(remoteData.shoppingItems)) setShoppingItems(remoteData.shoppingItems);
+      if (Array.isArray(remoteData.expenses)) setExpenses(remoteData.expenses);
+      if (Array.isArray(remoteData.events)) setEvents(remoteData.events);
+
+      setTimeout(() => {
+        isCloudSyncSuppressedRef.current = false;
+      }, 500);
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [house.id]);
+
+  // 2. Outbound: Debounced auto-push to Cloud on local mutations
+  useEffect(() => {
+    if (!isFirebaseConfigured || isCloudSyncSuppressedRef.current) return;
+
+    const timer = setTimeout(() => {
+      lastCloudSyncTimestampRef.current = Date.now();
+      syncFullHouseToFirestore({
+        house,
+        members,
+        rooms,
+        chores,
+        choreLogs,
+        pets,
+        selectedPetId,
+        pantryItems,
+        shoppingItems,
+        expenses,
+        events,
+      });
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [house, members, rooms, chores, choreLogs, pets, selectedPetId, pantryItems, shoppingItems, expenses, events]);
+
+  const syncToCloudNow = async (): Promise<boolean> => {
+    if (!isFirebaseConfigured) {
+      showToast('Firebase ainda não conectado. Seus dados estão salvos localmente.', 'info');
+      return false;
+    }
+    const success = await syncFullHouseToFirestore({
+      house,
+      members,
+      rooms,
+      chores,
+      choreLogs,
+      pets,
+      selectedPetId,
+      pantryItems,
+      shoppingItems,
+      expenses,
+      events,
+    });
+    if (success) {
+      showToast('Dados sincronizados com o Firestore na nuvem!', 'success');
+    }
+    return success;
+  };
 
   // Recalculate room & house health scores whenever chores change
   const refreshScores = useCallback((updatedChores: Chore[]) => {
@@ -1168,6 +1256,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resetAllToSeed,
         theme,
         setTheme,
+        isFirebaseConnected: isFirebaseConfigured,
+        syncToCloudNow,
       }}
     >
       {children}

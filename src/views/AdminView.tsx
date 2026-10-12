@@ -30,6 +30,9 @@ import {
   Globe,
   KeyRound,
   ExternalLink,
+  Cloud,
+  Database,
+  Info,
 } from 'lucide-react';
 import { Button } from '../components/untitled/Button';
 import { Badge } from '../components/untitled/Badge';
@@ -114,6 +117,8 @@ export const AdminView: React.FC = () => {
     importHouseData,
     resetAllToSeed,
     showToast,
+    isFirebaseConnected,
+    syncToCloudNow,
   } = useApp();
 
   // House identity form state
@@ -139,11 +144,36 @@ export const AdminView: React.FC = () => {
   // Copy feedback
   const [codeCopied, setCodeCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+  const [showFirebaseEnvHelp, setShowFirebaseEnvHelp] = useState(false);
+  const [copiedEnv, setCopiedEnv] = useState(false);
 
   // File upload input ref
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isAdmin = currentUser.role === 'admin';
+
+  const handleForceSync = async () => {
+    setIsSyncingCloud(true);
+    try {
+      await syncToCloudNow();
+    } finally {
+      setIsSyncingCloud(false);
+    }
+  };
+
+  const copyEnvSample = () => {
+    const envSample = `VITE_FIREBASE_API_KEY=AIzaSy...
+VITE_FIREBASE_AUTH_DOMAIN=seu-projeto.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=seu-projeto-id
+VITE_FIREBASE_STORAGE_BUCKET=seu-projeto.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=000000000000
+VITE_FIREBASE_APP_ID=1:000000000000:web:abcdef123456`;
+    navigator.clipboard.writeText(envSample);
+    setCopiedEnv(true);
+    showToast('Variáveis .env copiadas para a área de transferência!', 'success');
+    setTimeout(() => setCopiedEnv(false), 2000);
+  };
 
   const handleSaveHouseDetails = (e: React.FormEvent) => {
     e.preventDefault();
@@ -616,16 +646,102 @@ export const AdminView: React.FC = () => {
             </div>
           </section>
 
-          {/* Section: Backup, Nuvem & Vercel */}
+          {/* Section: Sincronização em Nuvem (Firebase Firestore) */}
+          <section className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-sand-200 dark:border-gray-800 shadow-u-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Cloud className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                <h2 className="text-sm font-bold font-display text-gray-900 dark:text-white tracking-tight">
+                  Nuvem & Sincronização em Tempo Real
+                </h2>
+              </div>
+              {isFirebaseConnected ? (
+                <Badge variant="success" size="sm" dot>Firestore Conectado</Badge>
+              ) : (
+                <Badge variant="warning" size="sm" dot>Modo Local-First</Badge>
+              )}
+            </div>
+
+            {isFirebaseConnected ? (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                  O Google Cloud Firestore está ativo e sincronizando alterações instantaneamente com todos os moradores conectados a este lar.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleForceSync}
+                    disabled={isSyncingCloud}
+                    className="flex items-center gap-1.5"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-brand-600 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+                    <span>{isSyncingCloud ? 'Sincronizando...' : 'Forçar Sincronização Agora'}</span>
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                  Seus dados estão salvos com rapidez no armazenamento local deste dispositivo. Para sincronizar em tempo real com os celulares de outros moradores no Vercel, configure as 6 variáveis do Firebase.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowFirebaseEnvHelp(!showFirebaseEnvHelp)}
+                    className="flex items-center gap-1.5 text-xs"
+                  >
+                    <Info className="w-3.5 h-3.5 text-brand-600" />
+                    <span>{showFirebaseEnvHelp ? 'Ocultar Guia do Firebase' : 'Como Conectar o Firebase (Guia Rápido)'}</span>
+                  </Button>
+                </div>
+
+                {showFirebaseEnvHelp && (
+                  <div className="p-3.5 rounded-xl bg-sand-50/70 dark:bg-gray-800/80 border border-sand-200 dark:border-gray-700 space-y-3 animate-in fade-in duration-150">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-gray-800 dark:text-gray-200">
+                        Variáveis de Ambiente Necessárias:
+                      </span>
+                      <button
+                        onClick={copyEnvSample}
+                        className="flex items-center gap-1 text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                      >
+                        {copiedEnv ? <Check className="w-3 h-3 text-success-600" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedEnv ? 'Copiado!' : 'Copiar .env'}</span>
+                      </button>
+                    </div>
+
+                    <pre className="text-[10px] font-mono bg-white dark:bg-gray-900 p-2.5 rounded-lg border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 overflow-x-auto select-all">
+{`VITE_FIREBASE_API_KEY=AIzaSy...
+VITE_FIREBASE_AUTH_DOMAIN=seu-projeto.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=seu-projeto-id
+VITE_FIREBASE_STORAGE_BUCKET=seu-projeto.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=000000000000
+VITE_FIREBASE_APP_ID=1:000000000000:web:abcdef123456`}
+                    </pre>
+
+                    <ol className="text-[11px] text-gray-600 dark:text-gray-400 list-decimal list-inside space-y-1">
+                      <li>Crie um projeto gratuito no Firebase Console.</li>
+                      <li>Ative o Cloud Firestore e aplique o arquivo <code className="font-mono text-[10px] bg-sand-100 dark:bg-gray-700 px-1 py-0.5 rounded">firestore.rules</code>.</li>
+                      <li>Copie essas 6 chaves nas <strong>Environment Variables</strong> do seu projeto no Vercel.</li>
+                    </ol>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* Section: Backup Local em Arquivo JSON */}
           <section className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-sand-200 dark:border-gray-800 shadow-u-xs space-y-4">
             <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
               <div className="flex items-center gap-2">
                 <Globe className="w-4 h-4 text-brand-600 dark:text-brand-400" />
                 <h2 className="text-sm font-bold font-display text-gray-900 dark:text-white tracking-tight">
-                  Backup & Nuvem
+                  Backup Local em Arquivo JSON
                 </h2>
               </div>
-              <Badge variant="success" size="sm" dot>Vercel Ready</Badge>
+              <Badge variant="gray" size="sm">JSON Seguro</Badge>
             </div>
 
             <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">

@@ -11,7 +11,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
-  const { house, currentUser, members, switchUser, resetAllToSeed, showToast, theme, setTheme } = useApp();
+  const { house, currentUser, members, switchUser, resetAllToSeed, showToast, theme, setTheme, isFirebaseConnected } = useApp();
   const [copied, setCopied] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -46,9 +46,15 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
               <h1 className="text-base font-bold text-gray-900 dark:text-white tracking-tight leading-none">
                 {house.name}
               </h1>
-              <Badge variant="brand" size="sm" dot>
-                Online
-              </Badge>
+              {isFirebaseConnected ? (
+                <Badge variant="success" size="sm" dot title="Sincronização em Nuvem Firebase Firestore Ativa">
+                  Nuvem Ativa
+                </Badge>
+              ) : (
+                <Badge variant="brand" size="sm" dot title="Modo Local-First (Offline)">
+                  Local-First
+                </Badge>
+              )}
             </div>
             <button
               onClick={copyInvite}

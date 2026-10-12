@@ -10,6 +10,7 @@ interface BadgeProps {
   dot?: boolean;
   className?: string;
   icon?: React.FC<{ className?: string }>;
+  title?: string;
 }
 
 const variantStyles: Record<BadgeVariant, { bg: string; text: string; border: string; dot: string }> = {
@@ -64,11 +65,13 @@ export const Badge: React.FC<BadgeProps> = ({
   dot = false,
   className = '',
   icon: Icon,
+  title,
 }) => {
   const v = variantStyles[variant];
 
   return (
     <span
+      title={title}
       className={`inline-flex items-center gap-1.5 font-medium rounded-full border ${v.bg} ${v.text} ${v.border} ${sizeStyles[size]} ${className} transition-colors`}
     >
       {dot && <span className={`w-1.5 h-1.5 rounded-full ${v.dot} flex-shrink-0 animate-pulse`} />}
