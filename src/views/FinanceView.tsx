@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { useApp } from '../context/AppContext';
-import { ExpenseCategory, HouseBudget, SplitType } from '../types';
+import { Expense, ExpenseCategory, HouseBudget, SplitType, ExpenseNature, ExpensePaymentStatus } from '../types';
 import {
   calculateFinancialBalances,
   formatCurrencyBRL,
@@ -9,6 +9,11 @@ import {
   calculateBudgetStatus,
   generateExpensesCsv,
   SettlementTransfer,
+  getExpensePaymentStatus,
+  getExpenseEffectiveDueDate,
+  getDaysOverdueOrRemaining,
+  calculateOverdueDebt,
+  calculateFixedAndVariableTotals,
 } from '../utils/financeMath';
 import {
   Wallet,
@@ -27,12 +32,18 @@ import {
   Printer,
   Sliders,
   AlertTriangle,
+  AlertOctagon,
   TrendingUp,
   Percent,
   FileText,
   QrCode as QrCodeIcon,
   CreditCard,
   Sparkles,
+  Barcode,
+  Calendar,
+  Clock,
+  Layers,
+  ArrowUpRight,
 } from 'lucide-react';
 import { BottomSheet } from '../components/BottomSheet';
 import { Button } from '../components/untitled/Button';
@@ -74,9 +85,18 @@ export const FinanceView: React.FC = () => {
   // Installment (Parcelamento)
   const [installments, setInstallments] = useState<number>(1);
 
-  // Recurring bills
+  // Recurring bills & Due Date
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringDay, setRecurringDay] = useState(10);
+  const [nature, setNature] = useState<ExpenseNature>('variable');
+  const [dueDateMode, setDueDateMode] = useState<'none' | 'specific_date' | 'recurring_day'>('none');
+  const [specificDueDate, setSpecificDueDate] = useState<string>('');
+  const [dueDay, setDueDay] = useState<number>(10);
+  const [barcode, setBarcode] = useState<string>('');
+
+  // Filter Tab: 'all' | 'fixed' | 'variable' | 'overdue'
+  const [activeFilterTab, setActiveFilterTab] = useState<'all' | 'fixed' | 'variable' | 'overdue'>('all');
+  const [copiedBarcodeId, setCopiedBarcodeId] = useState<string | null>(null);
 
   // Receipt image attachment
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
@@ -107,6 +127,10 @@ export const FinanceView: React.FC = () => {
   // Report Modal State
   const [showReportModal, setShowReportModal] = useState(false);
 
+  const now = Date.now();
+  const overdueDebt = calculateOverdueDebt(expenses, now);
+  const natureTotals = calculateFixedAndVariableTotals(expenses);
+
   // Financial calculations
   const { balances, settlements, totalHouseSpend } = calculateFinancialBalances(
     expenses,
@@ -122,6 +146,36 @@ export const FinanceView: React.FC = () => {
   };
 
   const budgetStatus = calculateBudgetStatus(expenses, house.budget);
+
+  // Filtered expenses list
+  const filteredExpenses = expenses.filter((e) => {
+    if (activeFilterTab === 'all') return true;
+    if (activeFilterTab === 'overdue') {
+      return getExpensePaymentStatus(e, now) === 'overdue';
+    }
+    const isFixed =
+      e.nature === 'fixed' ||
+      (e.nature === undefined && (!!e.isRecurring || e.category === 'contas'));
+    if (activeFilterTab === 'fixed') return isFixed;
+    if (activeFilterTab === 'variable') return !isFixed;
+    return true;
+  });
+
+  const fixedExpensesList = expenses.filter(
+    (e) => e.nature === 'fixed' || (e.nature === undefined && (!!e.isRecurring || e.category === 'contas'))
+  );
+  const variableExpensesList = expenses.filter(
+    (e) => !(e.nature === 'fixed' || (e.nature === undefined && (!!e.isRecurring || e.category === 'contas')))
+  );
+
+  const handleCopyBarcode = (expense: Expense) => {
+    if (!expense.barcode) return;
+    navigator.clipboard.writeText(expense.barcode.replace(/\s+/g, ''));
+    setCopiedBarcodeId(expense.id);
+    if (vibrationEnabled) triggerHaptic('light');
+    showToast('Código de barras copiado para a área de transferência!', 'success');
+    setTimeout(() => setCopiedBarcodeId(null), 2500);
+  };
 
   // Sync split participants when member list changes
   useEffect(() => {
@@ -243,6 +297,15 @@ export const FinanceView: React.FC = () => {
       }
     }
 
+    let dueDateTimestamp: number | undefined = undefined;
+    if (dueDateMode === 'specific_date' && specificDueDate) {
+      const [y, m, d] = specificDueDate.split('-').map(Number);
+      dueDateTimestamp = new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
+    }
+
+    const isRec = dueDateMode === 'recurring_day' || isRecurring;
+    const finalRecurringDay = dueDateMode === 'recurring_day' ? dueDay : (isRecurring ? recurringDay : undefined);
+
     addExpense(
       {
         description: description.trim(),
@@ -253,8 +316,12 @@ export const FinanceView: React.FC = () => {
         date: Date.now(),
         isSettled: false,
         receiptUrl: receiptUrl || undefined,
-        isRecurring,
-        recurringDay: isRecurring ? recurringDay : undefined,
+        isRecurring: isRec,
+        recurringDay: finalRecurringDay,
+        nature,
+        dueDate: dueDateTimestamp,
+        dueDay: dueDateMode === 'recurring_day' ? dueDay : undefined,
+        barcode: barcode.trim() || undefined,
         splitType,
         customSplits: splitType !== 'equal' ? customSplits : undefined,
       },
@@ -269,6 +336,11 @@ export const FinanceView: React.FC = () => {
     setAmount('');
     setReceiptUrl(null);
     setIsRecurring(false);
+    setNature('variable');
+    setDueDateMode('none');
+    setSpecificDueDate('');
+    setDueDay(10);
+    setBarcode('');
     setInstallments(1);
     setSplitType('equal');
     setCustomSplits({});
@@ -416,6 +488,97 @@ export const FinanceView: React.FC = () => {
         </div>
       </div>
 
+      {/* Critical Alert Banner: Dívidas da Casa (Boletos Vencidos) */}
+      {overdueDebt.count > 0 && (
+        <div className="rounded-2xl bg-gradient-to-r from-rose-50 via-red-50 to-orange-50 dark:from-rose-950/40 dark:via-red-950/30 dark:to-orange-950/20 border-2 border-rose-300 dark:border-rose-800/70 p-5 shadow-u-sm space-y-4 animate-in fade-in slide-in-from-top-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center shadow-u-xs animate-pulse flex-shrink-0">
+                <AlertOctagon className="w-5 h-5 stroke-[2.2]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-black text-rose-950 dark:text-rose-100 uppercase tracking-wider font-display">
+                    Dívidas da Casa • {overdueDebt.count} {overdueDebt.count === 1 ? 'Boleto Vencido' : 'Boletos Vencidos'}
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-rose-600 text-white shadow-u-xs">
+                    Urgente
+                  </span>
+                </div>
+                <p className="text-xs text-rose-700 dark:text-rose-300 mt-0.5">
+                  Total acumulado em atraso: <strong className="font-bold text-rose-900 dark:text-rose-100">{formatCurrencyBRL(overdueDebt.totalOverdue)}</strong>. Regularize para evitar juros e cortes.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setActiveFilterTab('overdue')}
+              className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all shadow-u-xs active:scale-95"
+            >
+              Filtrar Boletos Vencidos
+            </button>
+          </div>
+
+          {/* Overdue items cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+            {overdueDebt.overdueExpenses.map((bill) => {
+              const daysInfo = getDaysOverdueOrRemaining(bill.dueDate || getExpenseEffectiveDueDate(bill, now) || now, now);
+              return (
+                <div
+                  key={bill.id}
+                  className="p-3.5 rounded-xl bg-white/95 dark:bg-gray-900/95 border border-rose-200 dark:border-rose-900/50 shadow-u-xs flex flex-col justify-between space-y-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1 mb-0.5">
+                        <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                        Atrasada há {daysInfo.days} {daysInfo.days === 1 ? 'dia' : 'dias'}
+                      </span>
+                      <h4 className="text-xs font-bold text-gray-900 dark:text-white truncate">
+                        {bill.description}
+                      </h4>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                        {bill.category} • Vencimento: {new Date(bill.dueDate || getExpenseEffectiveDueDate(bill, now) || now).toLocaleDateString('pt-BR')}
+                      </p>
+                    </div>
+                    <span className="text-sm font-black font-display text-rose-600 dark:text-rose-400 whitespace-nowrap">
+                      {formatCurrencyBRL(bill.amount)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-1.5 pt-1.5 border-t border-gray-100 dark:border-gray-800">
+                    {bill.barcode && (
+                      <button
+                        onClick={() => handleCopyBarcode(bill)}
+                        className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors"
+                        title="Copiar código de barras do boleto"
+                      >
+                        {copiedBarcodeId === bill.id ? (
+                          <Check className="w-3 h-3 text-emerald-600" />
+                        ) : (
+                          <Barcode className="w-3 h-3 text-gray-600 dark:text-gray-300" />
+                        )}
+                        <span>{copiedBarcodeId === bill.id ? 'Copiado' : 'Boleto'}</span>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        toggleExpenseSettled(bill.id);
+                        if (soundEnabled) playSuccessChime(soundEnabled);
+                      }}
+                      className="text-[11px] font-bold px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-u-xs transition-colors"
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Net Balance Master Card & Monthly Budget Hero Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Net Balance Card */}
@@ -561,6 +724,98 @@ export const FinanceView: React.FC = () => {
         </div>
       </div>
 
+      {/* Mini-Dashboard: Contas Fixas vs Gastos Variáveis */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Contas Fixas */}
+        <div className="rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-4 shadow-u-xs flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400 flex items-center gap-1.5">
+              <Repeat className="w-3.5 h-3.5" />
+              Contas Fixas do Mês
+            </span>
+            <div className="text-lg font-black font-display text-gray-900 dark:text-white">
+              {formatCurrencyBRL(natureTotals.fixedTotal)}
+            </div>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+              Pendente: <strong className="text-brand-600 dark:text-brand-400">{formatCurrencyBRL(natureTotals.fixedPending)}</strong> • Quitado: {formatCurrencyBRL(natureTotals.fixedPaid)}
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveFilterTab('fixed')}
+            className="p-2 rounded-xl bg-brand-50 hover:bg-brand-100 dark:bg-brand-950/60 dark:hover:bg-brand-900/60 text-brand-700 dark:text-brand-300 transition-colors"
+            title="Filtrar contas fixas"
+          >
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Gastos Variáveis */}
+        <div className="rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-4 shadow-u-xs flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5" />
+              Gastos Variáveis (Dia a Dia)
+            </span>
+            <div className="text-lg font-black font-display text-gray-900 dark:text-white">
+              {formatCurrencyBRL(natureTotals.variableTotal)}
+            </div>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+              Pendente: <strong className="text-indigo-600 dark:text-indigo-400">{formatCurrencyBRL(natureTotals.variablePending)}</strong> • Acertado: {formatCurrencyBRL(natureTotals.variablePaid)}
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveFilterTab('variable')}
+            className="p-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 transition-colors"
+            title="Filtrar gastos variáveis"
+          >
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Dívidas / Inadimplência da Casa */}
+        <div
+          className={`rounded-2xl border p-4 shadow-u-xs flex items-center justify-between transition-colors ${
+            overdueDebt.count > 0
+              ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-300 dark:border-rose-900/60'
+              : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800'
+          }`}
+        >
+          <div className="space-y-1">
+            <span
+              className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                overdueDebt.count > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+              }`}
+            >
+              {overdueDebt.count > 0 ? <AlertTriangle className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
+              Dívidas & Boletos Vencidos
+            </span>
+            <div
+              className={`text-lg font-black font-display ${
+                overdueDebt.count > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-gray-900 dark:text-white'
+              }`}
+            >
+              {formatCurrencyBRL(overdueDebt.totalOverdue)}
+            </div>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+              {overdueDebt.count > 0
+                ? `${overdueDebt.count} ${overdueDebt.count === 1 ? 'boleto atrasado' : 'boletos atrasados'}`
+                : 'Nenhum boleto em atraso 🎉'}
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveFilterTab('overdue')}
+            className={`p-2 rounded-xl transition-colors ${
+              overdueDebt.count > 0
+                ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                : 'bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 text-gray-400 hover:text-gray-600'
+            }`}
+            title="Ver contas atrasadas"
+          >
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
       {/* Main Grid: Settlements & Recurring Bills */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Fair Share Settlement Matrix with 1-click PIX & WhatsApp */}
@@ -683,48 +938,98 @@ export const FinanceView: React.FC = () => {
             <Badge variant="brand" size="sm">Todo Mês</Badge>
           </div>
 
-          {recurringExpenses.length === 0 ? (
+          {fixedExpensesList.length === 0 ? (
             <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-center text-gray-500 dark:text-gray-400 text-xs font-medium border border-gray-200/60 dark:border-gray-800">
-              Nenhuma conta fixa cadastrada. Marque "Conta Recorrente" ao criar uma despesa.
+              Nenhuma conta fixa cadastrada. Ao criar uma despesa, selecione "Conta Fixa da Casa".
             </div>
           ) : (
-            <div className="space-y-2.5">
-              {recurringExpenses.map((bill) => (
-                <div
-                  key={bill.id}
-                  className="p-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-sand-50/40 dark:bg-gray-800/40 flex items-center justify-between"
-                >
-                  <div className="min-w-0 pr-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-gray-900 dark:text-white truncate">
-                        {bill.description}
-                      </span>
-                      <span className="text-[10px] font-semibold text-brand-700 dark:text-brand-300 bg-brand-100/70 dark:bg-brand-950/80 px-1.5 py-0.5 rounded">
-                        Dia {bill.recurringDay || 10}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
-                      {bill.category} • {formatCurrencyBRL(bill.amount)}
-                    </p>
-                  </div>
+            <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+              {fixedExpensesList.map((bill) => {
+                const status = getExpensePaymentStatus(bill, now);
+                const dueDateTs = getExpenseEffectiveDueDate(bill, now);
+                const daysInfo = dueDateTs ? getDaysOverdueOrRemaining(dueDateTs, now) : null;
 
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => {
-                        toggleExpenseSettled(bill.id);
-                        if (soundEnabled) playSuccessChime(soundEnabled);
-                      }}
-                      className={`text-xs font-semibold px-2.5 py-1 rounded-lg border transition-all ${
-                        bill.isSettled
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-800'
-                          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-brand-400'
-                      }`}
-                    >
-                      {bill.isSettled ? 'Quitado' : 'Marcar Pago'}
-                    </button>
+                return (
+                  <div
+                    key={bill.id}
+                    className={`p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                      bill.isSettled
+                        ? 'bg-gray-50/50 dark:bg-gray-800/20 border-gray-200/40 dark:border-gray-800/40 opacity-60'
+                        : status === 'overdue'
+                        ? 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/50'
+                        : 'bg-sand-50/40 dark:bg-gray-800/40 border-gray-200/70 dark:border-gray-800'
+                    }`}
+                  >
+                    <div className="min-w-0 pr-2 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
+                        <span className="text-xs font-bold text-gray-900 dark:text-white truncate">
+                          {bill.description}
+                        </span>
+
+                        {status === 'overdue' && (
+                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 flex items-center gap-0.5">
+                            <AlertTriangle className="w-2.5 h-2.5" />
+                            Atrasada ({daysInfo?.days}d)
+                          </span>
+                        )}
+
+                        {status === 'due_today' && (
+                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 animate-pulse flex items-center gap-0.5">
+                            <Clock className="w-2.5 h-2.5" />
+                            Vence Hoje
+                          </span>
+                        )}
+
+                        {status === 'upcoming' && (
+                          <span className="text-[10px] font-semibold text-brand-700 dark:text-brand-300 bg-brand-100/70 dark:bg-brand-950/80 px-1.5 py-0.5 rounded">
+                            {bill.dueDay ? `Todo dia ${bill.dueDay}` : `Vence em ${daysInfo?.days}d`}
+                          </span>
+                        )}
+
+                        {bill.isSettled && (
+                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
+                            Paga
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                        {bill.category} • <strong className="text-gray-900 dark:text-white font-semibold">{formatCurrencyBRL(bill.amount)}</strong>
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {bill.barcode && (
+                        <button
+                          onClick={() => handleCopyBarcode(bill)}
+                          className="p-1.5 rounded-lg text-gray-600 hover:text-gray-900 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-brand-400 transition-colors"
+                          title="Copiar código de barras do boleto"
+                        >
+                          {copiedBarcodeId === bill.id ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          ) : (
+                            <Barcode className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          toggleExpenseSettled(bill.id);
+                          if (soundEnabled) playSuccessChime(soundEnabled);
+                        }}
+                        className={`text-xs font-semibold px-2.5 py-1 rounded-lg border transition-all ${
+                          bill.isSettled
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-800'
+                            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-brand-400'
+                        }`}
+                      >
+                        {bill.isSettled ? 'Quitado' : 'Marcar Pago'}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -785,104 +1090,227 @@ export const FinanceView: React.FC = () => {
 
         {/* Recent Expense History Feed (2 cols) */}
         <div className="md:col-span-2 rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-5 shadow-u-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider font-display">
-              Histórico de Lançamentos ({expenses.length})
-            </h3>
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              {expenses.filter((e) => !e.isSettled).length} pendentes
-            </span>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider font-display">
+                Lançamentos ({filteredExpenses.length})
+              </h3>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                {expenses.filter((e) => !e.isSettled).length} contas em aberto no total
+              </p>
+            </div>
+
+            {/* Segmented Filter Tabs */}
+            <div className="flex flex-wrap items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setActiveFilterTab('all')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                  activeFilterTab === 'all'
+                    ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-u-xs'
+                    : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+                }`}
+              >
+                Todas ({expenses.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveFilterTab('fixed')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                  activeFilterTab === 'fixed'
+                    ? 'bg-white dark:bg-gray-900 text-brand-700 dark:text-brand-300 shadow-u-xs'
+                    : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+                }`}
+              >
+                Fixas ({fixedExpensesList.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveFilterTab('variable')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                  activeFilterTab === 'variable'
+                    ? 'bg-white dark:bg-gray-900 text-indigo-700 dark:text-indigo-300 shadow-u-xs'
+                    : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+                }`}
+              >
+                Variáveis ({variableExpensesList.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveFilterTab('overdue')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                  activeFilterTab === 'overdue'
+                    ? 'bg-rose-600 text-white shadow-u-xs'
+                    : overdueDebt.count > 0
+                    ? 'text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40'
+                    : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+                }`}
+              >
+                <span>Atrasadas</span>
+                {overdueDebt.count > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white font-black">
+                    {overdueDebt.count}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
 
-          <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
-            {expenses.map((expense) => {
-              const payer = members.find((m) => m.userId === expense.paidByUserId);
+          <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+            {filteredExpenses.length === 0 ? (
+              <div className="p-8 text-center rounded-xl bg-gray-50 dark:bg-gray-800/40 border border-gray-200/60 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400">
+                Nenhuma despesa encontrada para o filtro selecionado.
+              </div>
+            ) : (
+              filteredExpenses.map((expense) => {
+                const payer = members.find((m) => m.userId === expense.paidByUserId);
+                const status = getExpensePaymentStatus(expense, now);
+                const dueDateTs = getExpenseEffectiveDueDate(expense, now);
+                const daysInfo = dueDateTs ? getDaysOverdueOrRemaining(dueDateTs, now) : null;
+                const isFixed =
+                  expense.nature === 'fixed' ||
+                  (expense.nature === undefined && (!!expense.isRecurring || expense.category === 'contas'));
 
-              return (
-                <div
-                  key={expense.id}
-                  className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 transition-all ${
-                    expense.isSettled
-                      ? 'bg-gray-50/50 dark:bg-gray-800/20 border-gray-200/40 dark:border-gray-800/40 opacity-60'
-                      : 'bg-white dark:bg-gray-900/80 border-gray-200/80 dark:border-gray-800 shadow-u-xs hover:border-brand-300 dark:hover:border-brand-700/60'
-                  }`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/60 px-2 py-0.5 rounded border border-brand-200/50 dark:border-brand-800/30">
-                        {expense.category}
-                      </span>
-                      {expense.installment && (
-                        <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-900/40">
-                          {expense.installment.current}/{expense.installment.total}x
+                return (
+                  <div
+                    key={expense.id}
+                    className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 transition-all ${
+                      expense.isSettled
+                        ? 'bg-gray-50/50 dark:bg-gray-800/20 border-gray-200/40 dark:border-gray-800/40 opacity-60'
+                        : status === 'overdue'
+                        ? 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40 shadow-u-xs'
+                        : 'bg-white dark:bg-gray-900/80 border-gray-200/80 dark:border-gray-800 shadow-u-xs hover:border-brand-300 dark:hover:border-brand-700/60'
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                        {/* Nature Badge */}
+                        {isFixed ? (
+                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 border border-brand-200/50 dark:border-brand-800/30">
+                            Fixa
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-medium uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-400 border border-slate-200 dark:border-gray-700">
+                            Variável
+                          </span>
+                        )}
+
+                        {/* Category */}
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
+                          {expense.category}
                         </span>
-                      )}
-                      {expense.splitType === 'percentage' && (
-                        <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/40">
-                          % Flexível
-                        </span>
-                      )}
-                      {expense.splitType === 'exact' && (
-                        <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900/40">
-                          R$ Exato
-                        </span>
-                      )}
-                      {expense.isRecurring && (
-                        <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/40">
-                          Recorrente
-                        </span>
-                      )}
-                      {expense.isSettled && (
-                        <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
-                          Quitado
-                        </span>
-                      )}
+
+                        {/* Due Date & Overdue Badge */}
+                        {status === 'overdue' && (
+                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 flex items-center gap-0.5">
+                            <AlertTriangle className="w-2.5 h-2.5 text-rose-600" />
+                            Atrasada ({daysInfo?.days}d)
+                          </span>
+                        )}
+
+                        {status === 'due_today' && (
+                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 animate-pulse flex items-center gap-0.5">
+                            <Clock className="w-2.5 h-2.5 text-amber-600" />
+                            Vence Hoje
+                          </span>
+                        )}
+
+                        {status === 'upcoming' && daysInfo && (
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 flex items-center gap-0.5">
+                            <Calendar className="w-2.5 h-2.5 text-sky-600" />
+                            Vence em {daysInfo.days}d
+                          </span>
+                        )}
+
+                        {expense.installment && (
+                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-900/40">
+                            {expense.installment.current}/{expense.installment.total}x
+                          </span>
+                        )}
+
+                        {expense.splitType === 'percentage' && (
+                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/40">
+                            % Flexível
+                          </span>
+                        )}
+
+                        {expense.splitType === 'exact' && (
+                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900/40">
+                            R$ Exato
+                          </span>
+                        )}
+
+                        {expense.isSettled && (
+                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                            Quitado
+                          </span>
+                        )}
+                      </div>
+
+                      <h4 className="text-xs font-bold text-gray-900 dark:text-white truncate">
+                        {expense.description}
+                      </h4>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                        Pago por <strong className="font-semibold text-gray-700 dark:text-gray-300">{payer?.displayName || 'Residente'}</strong> • {new Date(expense.date).toLocaleDateString('pt-BR')}
+                        {dueDateTs ? ` • Vencimento: ${new Date(dueDateTs).toLocaleDateString('pt-BR')}` : ''}
+                      </p>
                     </div>
-                    <h4 className="text-xs font-bold text-gray-900 dark:text-white truncate">
-                      {expense.description}
-                    </h4>
-                    <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
-                      Pago por <strong className="font-semibold text-gray-700 dark:text-gray-300">{payer?.displayName || 'Residente'}</strong> • {new Date(expense.date).toLocaleDateString('pt-BR')}
-                    </p>
-                  </div>
 
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {expense.receiptUrl && (
-                      <button
-                        onClick={() => setViewingReceiptUrl(expense.receiptUrl || null)}
-                        className="p-1.5 rounded-lg text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950/40 border border-brand-200/60 dark:border-brand-800/60 transition-colors"
-                        title="Ver comprovante anexado"
-                      >
-                        <Paperclip className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {expense.barcode && (
+                        <button
+                          onClick={() => handleCopyBarcode(expense)}
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-gray-700 hover:text-gray-900 dark:text-gray-200 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors shadow-u-xs"
+                          title="Copiar código de barras do boleto"
+                        >
+                          {copiedBarcodeId === expense.id ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          ) : (
+                            <Barcode className="w-3.5 h-3.5 text-gray-600 dark:text-gray-300" />
+                          )}
+                          <span className="hidden sm:inline">
+                            {copiedBarcodeId === expense.id ? 'Copiado' : 'Boleto'}
+                          </span>
+                        </button>
+                      )}
 
-                    <div className="text-right">
-                      <span className="text-sm font-black font-display text-gray-900 dark:text-white block">
-                        {formatCurrencyBRL(expense.amount)}
-                      </span>
+                      {expense.receiptUrl && (
+                        <button
+                          onClick={() => setViewingReceiptUrl(expense.receiptUrl || null)}
+                          className="p-1.5 rounded-lg text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950/40 border border-brand-200/60 dark:border-brand-800/60 transition-colors"
+                          title="Ver comprovante anexado"
+                        >
+                          <Paperclip className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
+                      <div className="text-right">
+                        <span className="text-sm font-black font-display text-gray-900 dark:text-white block">
+                          {formatCurrencyBRL(expense.amount)}
+                        </span>
+                        <button
+                          onClick={() => {
+                            toggleExpenseSettled(expense.id);
+                            if (soundEnabled) playSuccessChime(soundEnabled);
+                          }}
+                          className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 underline mt-0.5"
+                        >
+                          {expense.isSettled ? 'Reabrir' : 'Quitar'}
+                        </button>
+                      </div>
+
                       <button
-                        onClick={() => {
-                          toggleExpenseSettled(expense.id);
-                          if (soundEnabled) playSuccessChime(soundEnabled);
-                        }}
-                        className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 underline mt-0.5"
+                        onClick={() => deleteExpense(expense.id)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-error-600 hover:bg-error-50 dark:hover:bg-error-950/40 transition-colors"
+                        title="Excluir despesa"
                       >
-                        {expense.isSettled ? 'Reabrir' : 'Quitar'}
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
-
-                    <button
-                      onClick={() => deleteExpense(expense.id)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-error-600 hover:bg-error-50 dark:hover:bg-error-950/40 transition-colors"
-                      title="Excluir despesa"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
       </div>
@@ -1244,31 +1672,133 @@ export const FinanceView: React.FC = () => {
             )}
           </div>
 
-          {/* Recurring bill toggle */}
-          <div className="p-3 bg-sand-50/70 dark:bg-gray-800/60 rounded-xl border border-sand-200 dark:border-gray-700 space-y-2">
-            <label className="flex items-center gap-2 text-xs font-semibold text-gray-800 dark:text-gray-200 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isRecurring}
-                onChange={(e) => setIsRecurring(e.target.checked)}
-                className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500"
-              />
-              <span>Conta Fixa Recorrente (vence todo mês)</span>
-            </label>
+          {/* Natureza da Despesa: Fixa vs Variável */}
+          <div className="space-y-2 pt-1 border-t border-gray-100 dark:border-gray-800">
+            <span className="text-xs font-bold text-gray-800 dark:text-gray-200 block">
+              Natureza da Despesa
+            </span>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setNature('variable');
+                  if (dueDateMode === 'recurring_day') setDueDateMode('none');
+                }}
+                className={`py-2 px-3 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 border transition-all ${
+                  nature === 'variable'
+                    ? 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-500 text-indigo-700 dark:text-indigo-300 shadow-u-xs'
+                    : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                <span>🛒 Gasto Variável</span>
+                <span className="text-[10px] font-normal opacity-80">Mercado, compras, avulsos</span>
+              </button>
 
-            {isRecurring && (
-              <div className="flex items-center gap-2 pl-6 animate-in fade-in duration-150">
-                <span className="text-xs text-gray-600 dark:text-gray-400">Dia do vencimento:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setNature('fixed');
+                  if (dueDateMode === 'none') setDueDateMode('recurring_day');
+                }}
+                className={`py-2 px-3 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 border transition-all ${
+                  nature === 'fixed'
+                    ? 'bg-brand-50 dark:bg-brand-950/60 border-brand-500 text-brand-700 dark:text-brand-300 shadow-u-xs'
+                    : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                <span>🏢 Conta Fixa da Casa</span>
+                <span className="text-[10px] font-normal opacity-80">Aluguel, luz, condomínio, net</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Vencimento & Boleto da Conta */}
+          <div className="p-3.5 bg-sand-50/70 dark:bg-gray-800/60 rounded-xl border border-sand-200 dark:border-gray-700 space-y-3">
+            <span className="text-xs font-bold text-gray-800 dark:text-gray-200 block">
+              Data de Vencimento
+            </span>
+
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setDueDateMode('none')}
+                className={`py-1.5 px-2 rounded-lg text-xs font-semibold border text-center transition-all ${
+                  dueDateMode === 'none'
+                    ? 'bg-white dark:bg-gray-900 border-brand-500 text-brand-700 dark:text-brand-300 shadow-u-xs font-bold'
+                    : 'bg-transparent border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                Sem vencimento
+              </button>
+              <button
+                type="button"
+                onClick={() => setDueDateMode('recurring_day')}
+                className={`py-1.5 px-2 rounded-lg text-xs font-semibold border text-center transition-all ${
+                  dueDateMode === 'recurring_day'
+                    ? 'bg-white dark:bg-gray-900 border-brand-500 text-brand-700 dark:text-brand-300 shadow-u-xs font-bold'
+                    : 'bg-transparent border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                Dia fixo (Mês)
+              </button>
+              <button
+                type="button"
+                onClick={() => setDueDateMode('specific_date')}
+                className={`py-1.5 px-2 rounded-lg text-xs font-semibold border text-center transition-all ${
+                  dueDateMode === 'specific_date'
+                    ? 'bg-white dark:bg-gray-900 border-brand-500 text-brand-700 dark:text-brand-300 shadow-u-xs font-bold'
+                    : 'bg-transparent border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                Data exata
+              </button>
+            </div>
+
+            {dueDateMode === 'recurring_day' && (
+              <div className="flex items-center gap-2 pl-1 animate-in fade-in duration-150">
+                <Clock className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+                <span className="text-xs text-gray-600 dark:text-gray-400">Dia de vencimento todo mês:</span>
                 <input
                   type="number"
                   min="1"
                   max="31"
-                  value={recurringDay}
-                  onChange={(e) => setRecurringDay(Number(e.target.value))}
+                  value={dueDay}
+                  onChange={(e) => setDueDay(Math.min(31, Math.max(1, Number(e.target.value))))}
                   className="w-16 px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs text-center font-bold"
                 />
               </div>
             )}
+
+            {dueDateMode === 'specific_date' && (
+              <div className="flex items-center gap-2 pl-1 animate-in fade-in duration-150">
+                <Calendar className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+                <span className="text-xs text-gray-600 dark:text-gray-400">Data de vencimento:</span>
+                <input
+                  type="date"
+                  value={specificDueDate}
+                  onChange={(e) => setSpecificDueDate(e.target.value)}
+                  className="px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-semibold"
+                />
+              </div>
+            )}
+
+            {/* Linha Digitável / Código de barras do boleto */}
+            <div className="pt-2 border-t border-gray-200/50 dark:border-gray-700/60 space-y-1">
+              <label className="text-[11px] font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                <Barcode className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+                <span>Código de Barras / Linha Digitável do Boleto (opcional)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="Ex: 23793.38128 60074.120084 12000.654019 1 98760000082000"
+                value={barcode}
+                onChange={(e) => setBarcode(e.target.value)}
+                className="w-full px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-mono placeholder:font-sans"
+              />
+              <p className="text-[10px] text-gray-400">
+                Cole a linha digitável do boleto para os moradores poderem copiar com 1 clique para pagar.
+              </p>
+            </div>
           </div>
 
           {/* Receipt Attachment */}

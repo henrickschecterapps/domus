@@ -123,6 +123,7 @@ interface AppContextType {
   clearBoughtItems: () => void;
   // Expense actions
   addExpense: (expense: Omit<Expense, 'id'>, totalInstallments?: number) => void;
+  updateExpense: (id: string, updates: Partial<Expense>) => void;
   toggleExpenseSettled: (id: string) => void;
   deleteExpense: (id: string) => void;
   updateHouseBudget: (budget: Partial<HouseBudget>) => void;
@@ -1460,6 +1461,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Status da despesa atualizado', 'info');
   };
 
+  const updateExpense = (id: string, updates: Partial<Expense>) => {
+    setExpenses((prev) =>
+      prev.map((exp) => (exp.id === id ? { ...exp, ...updates } : exp))
+    );
+    showToast('Despesa atualizada com sucesso', 'success');
+  };
+
   const deleteExpense = (id: string) => {
     setExpenses((prev) => prev.filter((exp) => exp.id !== id));
     showToast('Despesa removida', 'info');
@@ -1996,6 +2004,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteShoppingItem,
         clearBoughtItems,
         addExpense,
+        updateExpense,
         toggleExpenseSettled,
         deleteExpense,
         updateHouseBudget,

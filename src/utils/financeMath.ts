@@ -1,4 +1,4 @@
-import { Expense, ExpenseCategory, HouseBudget, HouseMember } from '../types';
+import { Expense, ExpenseCategory, ExpenseNature, ExpensePaymentStatus, HouseBudget, HouseMember } from '../types';
 
 export interface MemberBalance {
   userId: string;
@@ -427,4 +427,155 @@ export function generateExpensesCsv(expenses: Expense[], members: HouseMember[])
 
   // UTF-8 with BOM for Excel compatibility
   return '\uFEFF' + [headers.join(';'), ...rows].join('\r\n');
+}
+
+// ==========================================
+// CONTAS FIXAS, VARIÁVEIS, VENCIMENTO & DÍVIDAS
+// ==========================================
+
+/**
+ * Resolves the effective due timestamp for an expense.
+ * If expense.dueDate is provided, returns it.
+ * If expense.dueDay (or legacy expense.recurringDay) is provided, computes the due date in the current/relevant month.
+ */
+export function getExpenseEffectiveDueDate(expense: Expense, now = Date.now()): number | null {
+  if (expense.dueDate) {
+    return expense.dueDate;
+  }
+  const day = expense.dueDay || (expense.isRecurring ? expense.recurringDay : undefined);
+  if (day) {
+    const nowDate = new Date(now);
+    const year = nowDate.getFullYear();
+    const month = nowDate.getMonth();
+    // Due date at 23:59:59 of that day
+    return new Date(year, month, day, 23, 59, 59, 999).getTime();
+  }
+  return null;
+}
+
+/**
+ * Calculates current payment status:
+ * - 'paid': if already settled
+ * - 'overdue': if unpaid and due date was before today
+ * - 'due_today': if unpaid and due date is today
+ * - 'upcoming': if unpaid and due date is in future
+ * - 'no_due_date': if unpaid and has no due date
+ */
+export function getExpensePaymentStatus(expense: Expense, now = Date.now()): ExpensePaymentStatus {
+  if (expense.isSettled) {
+    return 'paid';
+  }
+
+  const effectiveDueDate = getExpenseEffectiveDueDate(expense, now);
+  if (!effectiveDueDate) {
+    return 'no_due_date';
+  }
+
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+
+  const endOfToday = new Date(now);
+  endOfToday.setHours(23, 59, 59, 999);
+
+  if (effectiveDueDate < startOfToday.getTime()) {
+    return 'overdue';
+  } else if (effectiveDueDate <= endOfToday.getTime()) {
+    return 'due_today';
+  } else {
+    return 'upcoming';
+  }
+}
+
+/**
+ * Returns days remaining or days overdue.
+ */
+export function getDaysOverdueOrRemaining(dueDate: number, now = Date.now()): {
+  days: number;
+  isOverdue: boolean;
+  isToday: boolean;
+} {
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+  const endOfToday = new Date(now);
+  endOfToday.setHours(23, 59, 59, 999);
+
+  if (dueDate >= startOfToday.getTime() && dueDate <= endOfToday.getTime()) {
+    return { days: 0, isOverdue: false, isToday: true };
+  }
+
+  const msDiff = dueDate - now;
+  const dayMs = 86_400_000;
+  if (msDiff < 0) {
+    const days = Math.max(1, Math.ceil(Math.abs(msDiff) / dayMs));
+    return { days, isOverdue: true, isToday: false };
+  } else {
+    const days = Math.max(1, Math.ceil(msDiff / dayMs));
+    return { days, isOverdue: false, isToday: false };
+  }
+}
+
+export interface OverdueDebtSummary {
+  totalOverdue: number;
+  count: number;
+  overdueExpenses: Expense[];
+}
+
+/**
+ * Filters all unpaid expenses that are past due.
+ */
+export function calculateOverdueDebt(expenses: Expense[], now = Date.now()): OverdueDebtSummary {
+  const overdueExpenses = expenses.filter((e) => getExpensePaymentStatus(e, now) === 'overdue');
+  const totalOverdue = overdueExpenses.reduce((sum, e) => sum + e.amount, 0);
+  return {
+    totalOverdue,
+    count: overdueExpenses.length,
+    overdueExpenses,
+  };
+}
+
+export interface NatureTotalsSummary {
+  fixedTotal: number;
+  variableTotal: number;
+  fixedPaid: number;
+  fixedPending: number;
+  variablePaid: number;
+  variablePending: number;
+}
+
+/**
+ * Computes totals for Fixed vs Variable expenses.
+ */
+export function calculateFixedAndVariableTotals(expenses: Expense[]): NatureTotalsSummary {
+  let fixedTotal = 0;
+  let variableTotal = 0;
+  let fixedPaid = 0;
+  let fixedPending = 0;
+  let variablePaid = 0;
+  let variablePending = 0;
+
+  expenses.forEach((e) => {
+    // If nature is explicitly 'fixed' OR is recurring/contas, consider fixed
+    const isFixed =
+      e.nature === 'fixed' ||
+      (e.nature === undefined && (!!e.isRecurring || e.category === 'contas'));
+
+    if (isFixed) {
+      fixedTotal += e.amount;
+      if (e.isSettled) fixedPaid += e.amount;
+      else fixedPending += e.amount;
+    } else {
+      variableTotal += e.amount;
+      if (e.isSettled) variablePaid += e.amount;
+      else variablePending += e.amount;
+    }
+  });
+
+  return {
+    fixedTotal,
+    variableTotal,
+    fixedPaid,
+    fixedPending,
+    variablePaid,
+    variablePending,
+  };
 }

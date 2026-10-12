@@ -176,25 +176,41 @@ export function getUnifiedHouseEvents(
     }
   });
 
-  // 3. Recurring Bills / Expenses
+  // 3. Bills & Expenses with due dates
   expenses?.forEach((exp) => {
-    if (exp.isRecurring && exp.recurringDay) {
+    if (exp.isSettled) return;
+
+    if (exp.dueDate) {
+      aggregated.push({
+        id: `auto_expense_${exp.id}`,
+        title: `Vencimento: ${exp.description}`,
+        description: `Boleto / Conta da casa no valor de R$ ${exp.amount.toFixed(2)}${exp.barcode ? ' • Código de barras disponível' : ''}`,
+        date: exp.dueDate,
+        endDate: exp.dueDate + 3600 * 1000,
+        category: 'contas',
+        createdByUserId: exp.paidByUserId,
+        createdByName: 'Financeiro Domus',
+        source: 'expense',
+        sourceId: exp.id,
+      });
+    } else if (exp.dueDay || (exp.isRecurring && exp.recurringDay)) {
+      const dayNum = exp.dueDay || exp.recurringDay!;
       const currentDate = new Date(now);
       const currentMonth = currentDate.getMonth();
       const currentYear = currentDate.getFullYear();
-      let billDate = new Date(currentYear, currentMonth, exp.recurringDay, 10, 0, 0).getTime();
+      let billDate = new Date(currentYear, currentMonth, dayNum, 10, 0, 0).getTime();
       if (billDate < now - dayMs) {
-        billDate = new Date(currentYear, currentMonth + 1, exp.recurringDay, 10, 0, 0).getTime();
+        billDate = new Date(currentYear, currentMonth + 1, dayNum, 10, 0, 0).getTime();
       }
       aggregated.push({
         id: `auto_expense_${exp.id}_${billDate}`,
-        title: `Conta: ${exp.description}`,
-        description: `Vencimento de fatura recorrente (R$ ${exp.amount.toFixed(2)})`,
+        title: `Vencimento: ${exp.description}`,
+        description: `Conta fixa mensal da casa (R$ ${exp.amount.toFixed(2)})${exp.barcode ? ' • Código de barras disponível' : ''}`,
         date: billDate,
         endDate: billDate + 3600 * 1000,
         category: 'contas',
         createdByUserId: exp.paidByUserId,
-        createdByName: 'Financeiro',
+        createdByName: 'Financeiro Domus',
         source: 'expense',
         sourceId: exp.id,
       });

@@ -256,6 +256,10 @@ export interface ExpenseInstallment {
   groupId: string; // id comum entre as parcelas
 }
 
+export type ExpenseNature = 'fixed' | 'variable';
+
+export type ExpensePaymentStatus = 'paid' | 'overdue' | 'due_today' | 'upcoming' | 'no_due_date';
+
 export interface Expense {
   id: string;
   description: string;
@@ -268,6 +272,10 @@ export interface Expense {
   isSettled: boolean;
   isRecurring?: boolean;
   recurringDay?: number;
+  nature?: ExpenseNature; // 'fixed' ou 'variable'
+  dueDate?: number; // timestamp exato de vencimento
+  dueDay?: number; // dia fixo recorrente (1-31)
+  barcode?: string; // Linha digitável ou código de barras do boleto
   notes?: string;
   splitType?: SplitType;
   customSplits?: Record<string, number>; // userId -> porcentagem (0-100) ou valor exato (BRL)

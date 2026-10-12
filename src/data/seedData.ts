@@ -685,6 +685,7 @@ export function createInitialExpenses(): Expense[] {
       splitAmongUserIds: ['user_1', 'user_2'],
       date: now - 4 * day,
       category: 'supermercado',
+      nature: 'variable',
       isSettled: false,
       notes: 'Compras do mês com produtos de limpeza e alimentos básicos',
     },
@@ -696,6 +697,7 @@ export function createInitialExpenses(): Expense[] {
       splitAmongUserIds: ['user_1', 'user_2'],
       date: now - 2 * day,
       category: 'pet',
+      nature: 'variable',
       isSettled: false,
     },
     {
@@ -706,6 +708,7 @@ export function createInitialExpenses(): Expense[] {
       splitAmongUserIds: ['user_1', 'user_2'],
       date: now - 1 * day,
       category: 'casa',
+      nature: 'variable',
       isSettled: false,
     },
     {
@@ -716,9 +719,12 @@ export function createInitialExpenses(): Expense[] {
       splitAmongUserIds: ['user_1', 'user_2'],
       date: now - 15 * day,
       category: 'contas',
+      nature: 'fixed',
       isSettled: true,
       isRecurring: true,
       recurringDay: 15,
+      dueDay: 15,
+      barcode: '34191.79001 01043.510047 91020.150008 8 91250000014990',
       notes: 'Conta recorrente mensal com vencimento todo dia 15',
     },
     {
@@ -729,10 +735,31 @@ export function createInitialExpenses(): Expense[] {
       splitAmongUserIds: ['user_1', 'user_2'],
       date: now - 5 * day,
       category: 'casa',
+      nature: 'fixed',
       isSettled: false,
       isRecurring: true,
       recurringDay: 10,
+      dueDay: 10,
+      dueDate: now - 2 * day, // Atrasado há 2 dias para demonstrar o banner de Dívidas da Casa
+      barcode: '23793.38128 60074.120084 12000.654019 1 98760000082000',
       notes: 'Boleto mensal do condomínio e portaria',
+    },
+    {
+      id: 'exp_rec_3',
+      description: 'Aluguel do Mês',
+      amount: 2400.00,
+      paidByUserId: 'user_1',
+      splitAmongUserIds: ['user_1', 'user_2'],
+      date: now,
+      category: 'casa',
+      nature: 'fixed',
+      isSettled: false,
+      isRecurring: true,
+      recurringDay: 20,
+      dueDay: 20,
+      dueDate: now + 5 * day, // Vence em 5 dias
+      barcode: '00190.00009 01234.567809 12345.678901 3 99990000240000',
+      notes: 'Aluguel proporcional do imóvel',
     },
   ];
 }
