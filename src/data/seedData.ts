@@ -10,6 +10,12 @@ export const DEFAULT_MEMBERS: HouseMember[] = [
     totalXP: 1420,
     streakDays: 5,
     levelTitle: 'Guardião da Casa',
+    phone: '(11) 98765-4321',
+    pixKeyType: 'email',
+    pixKey: 'henrique@domus.app',
+    assignedRoomId: 'suite',
+    soundEnabled: true,
+    vibrationEnabled: true,
   },
   {
     userId: 'user_2',
@@ -20,6 +26,12 @@ export const DEFAULT_MEMBERS: HouseMember[] = [
     totalXP: 1290,
     streakDays: 4,
     levelTitle: 'Mestre da Harmonia',
+    phone: '(11) 91234-5678',
+    pixKeyType: 'cpf',
+    pixKey: '123.456.789-00',
+    assignedRoomId: 'escritorio',
+    soundEnabled: true,
+    vibrationEnabled: true,
   },
 ];
 
@@ -30,6 +42,27 @@ export const DEFAULT_HOUSE: House = {
   createdAt: Date.now() - 30 * 86_400_000,
   houseScore: 84,
   members: DEFAULT_MEMBERS,
+  address: 'Rua Harmonia, 412 - Pinheiros, SP',
+  weeklyGoalXP: 500,
+  rulesNotes: 'Manter pia limpa após uso. Silêncio após 22h. Cuidar com carinho dos pets.',
+  wifiSsid: 'Domus Sanctuary 5G',
+  wifiPassword: 'domus_bem_estar_2026',
+  emergencyContacts: [
+    { id: 'c1', name: 'Portaria 24h', category: 'portaria', phone: '(11) 3210-0001', notes: 'Ramal 101' },
+    { id: 'c2', name: 'Roberto (Síndico)', category: 'sindico', phone: '(11) 99887-1122', notes: 'Horário comercial' },
+    { id: 'c3', name: 'Carlos Encanador', category: 'encanador', phone: '(11) 97766-3344', notes: 'Atende emergências' },
+    { id: 'c4', name: 'Chaveiro Central', category: 'chaveiro', phone: '(11) 96655-2211', notes: 'Plantão 24 horas' },
+  ],
+  rewards: [
+    { id: 'rew1', title: 'Café na Cama no Domingo', description: 'Quem fizer mais XP na semana tem direito a café especial servido pelos moradores.', requiredXP: 300 },
+    { id: 'rew2', title: 'Folga da Louça no Fim de Semana', description: 'Isenção completa de lavar louça no sábado e domingo.', requiredXP: 450 },
+    { id: 'rew3', title: 'Escolha do Filme da Sexta', description: 'Direito a escolher a sessão de cinema com pipoca da casa.', requiredXP: 200 },
+  ],
+  notes: [
+    { id: 'n1', authorId: 'user_2', authorName: 'Mariana', content: 'Comprei morangos frescos na feira! Estão na gaveta da geladeira para quem quiser. 🍓', color: 'yellow', isPinned: true, createdAt: Date.now() - 3 * 3600 * 1000 },
+    { id: 'n2', authorId: 'user_1', authorName: 'Henrique', content: 'Manutenção da rede elétrica do condomínio marcada para sexta às 10h. ⚡', color: 'blue', isPinned: false, createdAt: Date.now() - 12 * 3600 * 1000 },
+    { id: 'n3', authorId: 'user_1', authorName: 'Henrique', content: 'Lembrar de encomendar os sachês gastro da Bayonetta que estão acabando.', color: 'pink', isPinned: false, createdAt: Date.now() - 24 * 3600 * 1000 },
+  ],
 };
 
 export function createInitialRooms(): Room[] {
@@ -479,6 +512,17 @@ export function createInitialPets(): Pet[] {
           xpEarned: 5,
         },
       ],
+      vetContact: {
+        name: 'Dra. Camila Castro',
+        phone: '(11) 98877-6655',
+        clinicName: 'Clínica Felina Gatos & Cia 24h',
+        address: 'Av. Rebouças, 1200 - Pinheiros',
+      },
+      weightHistory: [
+        { date: now - 60 * day, weightKg: 4.1 },
+        { date: now - 30 * day, weightKg: 4.2 },
+        { date: now - 5 * day, weightKg: 4.3 },
+      ],
     },
     {
       id: 'pet_apollo',
@@ -542,6 +586,17 @@ export function createInitialPets(): Pet[] {
           xpEarned: 10,
         },
       ],
+      vetContact: {
+        name: 'Dr. Fernando Silva',
+        phone: '(11) 97766-5544',
+        clinicName: 'Hospital Veterinário 24h PetCare',
+        address: 'Rua Fradique Coutinho, 890 - Pinheiros',
+      },
+      weightHistory: [
+        { date: now - 90 * day, weightKg: 30.2 },
+        { date: now - 30 * day, weightKg: 31.0 },
+        { date: now - 2 * day, weightKg: 31.5 },
+      ],
     },
   ];
 }
@@ -551,25 +606,28 @@ export function createInitialPet(): Pet {
 }
 
 export function createInitialPantry(): PantryItem[] {
+  const now = Date.now();
+  const day = 86_400_000;
   return [
-    { id: 'pantry_1', name: 'Arroz Integral 1kg', category: 'mercearia', currentQuantity: 3, minQuantity: 1, unit: 'pacote', autoAddToShopping: true },
-    { id: 'pantry_2', name: 'Azeite Extra Virgem 500ml', category: 'mercearia', currentQuantity: 1, minQuantity: 1, unit: 'un', autoAddToShopping: true },
+    { id: 'pantry_1', name: 'Arroz Integral 1kg', category: 'mercearia', currentQuantity: 3, minQuantity: 1, unit: 'pacote', autoAddToShopping: true, expirationDate: now + 60 * day },
+    { id: 'pantry_2', name: 'Azeite Extra Virgem 500ml', category: 'mercearia', currentQuantity: 1, minQuantity: 1, unit: 'un', autoAddToShopping: true, expirationDate: now + 180 * day },
     { id: 'pantry_3', name: 'Detergente Líquido', category: 'limpeza', currentQuantity: 1, minQuantity: 2, unit: 'un', autoAddToShopping: true },
     { id: 'pantry_4', name: 'Desinfetante Floral 2L', category: 'limpeza', currentQuantity: 2, minQuantity: 1, unit: 'un', autoAddToShopping: false },
     { id: 'pantry_5', name: 'Sacos de Lixo 30L', category: 'limpeza', currentQuantity: 0, minQuantity: 1, unit: 'pacote', autoAddToShopping: true },
-    { id: 'pantry_6', name: 'Sachê Whiskas Carne', category: 'pet', currentQuantity: 2, minQuantity: 6, unit: 'un', autoAddToShopping: true },
+    { id: 'pantry_6', name: 'Sachê Whiskas Carne', category: 'pet', currentQuantity: 2, minQuantity: 6, unit: 'un', autoAddToShopping: true, expirationDate: now + 90 * day },
     { id: 'pantry_7', name: 'Areia Higiênica Pipicat 4kg', category: 'pet', currentQuantity: 1, minQuantity: 2, unit: 'pacote', autoAddToShopping: true },
-    { id: 'pantry_8', name: 'Maçãs Gala', category: 'hortifruti', currentQuantity: 4, minQuantity: 4, unit: 'un', autoAddToShopping: false },
-    { id: 'pantry_9', name: 'Queijo Muçarela Fatiado', category: 'refrigerados', currentQuantity: 1, minQuantity: 1, unit: 'pacote', autoAddToShopping: true },
+    { id: 'pantry_8', name: 'Maçãs Gala', category: 'hortifruti', currentQuantity: 4, minQuantity: 4, unit: 'un', autoAddToShopping: false, expirationDate: now + 4 * day },
+    { id: 'pantry_9', name: 'Queijo Muçarela Fatiado', category: 'refrigerados', currentQuantity: 1, minQuantity: 1, unit: 'pacote', autoAddToShopping: true, expirationDate: now + 3 * day },
   ];
 }
 
 export function createInitialShoppingList(): ShoppingItem[] {
   const now = Date.now();
   return [
-    { id: 'shop_1', name: 'Sacos de Lixo 30L', category: 'limpeza', quantity: 2, unit: 'pacote', isBought: false, addedBy: 'Henrique', fromPantryId: 'pantry_5', createdAt: now - 3600 * 1000 },
-    { id: 'shop_2', name: 'Sachês para Bayonetta (cx com 12)', category: 'pet', quantity: 1, unit: 'pacote', isBought: false, addedBy: 'Mariana', fromPantryId: 'pantry_6', createdAt: now - 5000 * 1000 },
-    { id: 'shop_3', name: 'Banana Prata', category: 'hortifruti', quantity: 1, unit: 'kg', isBought: true, addedBy: 'Mariana', createdAt: now - 8000 * 1000 },
+    { id: 'shop_1', name: 'Sacos de Lixo 30L', category: 'limpeza', quantity: 2, unit: 'pacote', isBought: false, addedBy: 'Henrique', fromPantryId: 'pantry_5', createdAt: now - 3600 * 1000, estimatedPrice: 22.90, aisleCategory: 'limpeza' },
+    { id: 'shop_2', name: 'Sachês para Bayonetta (cx com 12)', category: 'pet', quantity: 1, unit: 'pacote', isBought: false, addedBy: 'Mariana', fromPantryId: 'pantry_6', createdAt: now - 5000 * 1000, estimatedPrice: 38.50, aisleCategory: 'pet' },
+    { id: 'shop_3', name: 'Banana Prata', category: 'hortifruti', quantity: 1, unit: 'kg', isBought: true, addedBy: 'Mariana', createdAt: now - 8000 * 1000, estimatedPrice: 9.90, aisleCategory: 'hortifruti' },
+    { id: 'shop_4', name: 'Leite Integral 1L', category: 'mercearia', quantity: 4, unit: 'un', isBought: false, addedBy: 'Henrique', createdAt: now - 12000 * 1000, estimatedPrice: 5.49, aisleCategory: 'laticinios' },
   ];
 }
 
@@ -586,6 +644,7 @@ export function createInitialExpenses(): Expense[] {
       date: now - 4 * day,
       category: 'supermercado',
       isSettled: false,
+      notes: 'Compras do mês com produtos de limpeza e alimentos básicos',
     },
     {
       id: 'exp_2',
@@ -606,6 +665,32 @@ export function createInitialExpenses(): Expense[] {
       date: now - 1 * day,
       category: 'casa',
       isSettled: false,
+    },
+    {
+      id: 'exp_rec_1',
+      description: 'Internet Fibra 600MB Vivo',
+      amount: 149.90,
+      paidByUserId: 'user_1',
+      splitAmongUserIds: ['user_1', 'user_2'],
+      date: now - 15 * day,
+      category: 'contas',
+      isSettled: true,
+      isRecurring: true,
+      recurringDay: 15,
+      notes: 'Conta recorrente mensal com vencimento todo dia 15',
+    },
+    {
+      id: 'exp_rec_2',
+      description: 'Condomínio Residencial Harmonia',
+      amount: 820.00,
+      paidByUserId: 'user_2',
+      splitAmongUserIds: ['user_1', 'user_2'],
+      date: now - 5 * day,
+      category: 'casa',
+      isSettled: false,
+      isRecurring: true,
+      recurringDay: 10,
+      notes: 'Boleto mensal do condomínio e portaria',
     },
   ];
 }

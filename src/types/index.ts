@@ -11,6 +11,40 @@ export interface HouseMember {
   levelTitle?: string;
   level?: number;
   email?: string;
+  phone?: string;
+  pixKeyType?: 'cpf' | 'email' | 'phone' | 'random';
+  pixKey?: string;
+  assignedRoomId?: string;
+  color?: string;
+  soundEnabled?: boolean;
+  vibrationEnabled?: boolean;
+}
+
+export interface EmergencyContact {
+  id: string;
+  name: string;
+  category: 'portaria' | 'sindico' | 'zelador' | 'encanador' | 'eletricista' | 'chaveiro' | 'vet' | 'outro';
+  phone: string;
+  notes?: string;
+}
+
+export interface HouseReward {
+  id: string;
+  title: string;
+  description: string;
+  requiredXP: number;
+  claimedByUserId?: string;
+  claimedAt?: number;
+}
+
+export interface HouseNote {
+  id: string;
+  authorId: string;
+  authorName: string;
+  content: string;
+  color: 'yellow' | 'pink' | 'blue' | 'green' | 'amber';
+  isPinned: boolean;
+  createdAt: number;
 }
 
 export interface House {
@@ -23,6 +57,11 @@ export interface House {
   address?: string;
   weeklyGoalXP?: number;
   rulesNotes?: string;
+  wifiSsid?: string;
+  wifiPassword?: string;
+  emergencyContacts?: EmergencyContact[];
+  rewards?: HouseReward[];
+  notes?: HouseNote[];
 }
 
 export interface Room {
@@ -49,6 +88,11 @@ export interface Chore {
   xpReward: number;
   urgencyScore: number; // Calculated dynamic value (0.0 to 2.0+)
   statusLevel: RoomStatusLevel;
+  rotationUserIds?: string[];
+  currentRotationIndex?: number;
+  estimatedMinutes?: number;
+  difficulty?: 'facil' | 'medio' | 'pesado';
+  completionProofUrl?: string;
 }
 
 export interface ChoreLog {
@@ -59,6 +103,7 @@ export interface ChoreLog {
   completedByName: string;
   completedAt: number;
   xpEarned: number;
+  proofUrl?: string;
 }
 
 export interface MedicalRecord {
@@ -78,6 +123,11 @@ export interface PetCareLog {
   performedByName: string;
   performedAt: number;
   xpEarned: number;
+}
+
+export interface PetWeightRecord {
+  date: number;
+  weightKg: number;
 }
 
 export interface Pet {
@@ -113,6 +163,13 @@ export interface Pet {
   };
   medicalRecords: MedicalRecord[];
   careLogs?: PetCareLog[];
+  vetContact?: {
+    name: string;
+    phone: string;
+    clinicName?: string;
+    address?: string;
+  };
+  weightHistory?: PetWeightRecord[];
 }
 
 export type PantryCategory = 'mercearia' | 'limpeza' | 'pet' | 'hortifruti' | 'refrigerados';
@@ -126,7 +183,10 @@ export interface PantryItem {
   minQuantity: number;
   unit: PantryUnit;
   autoAddToShopping: boolean;
+  expirationDate?: number;
 }
+
+export type ShoppingAisleCategory = 'hortifruti' | 'carnes' | 'laticinios' | 'mercearia' | 'limpeza' | 'bebidas' | 'padaria' | 'pet' | 'outros';
 
 export interface ShoppingItem {
   id: string;
@@ -138,6 +198,8 @@ export interface ShoppingItem {
   addedBy: string;
   fromPantryId?: string;
   createdAt: number;
+  estimatedPrice?: number;
+  aisleCategory?: ShoppingAisleCategory;
 }
 
 export type ExpenseCategory = 'supermercado' | 'casa' | 'pet' | 'contas';
@@ -152,6 +214,9 @@ export interface Expense {
   category: ExpenseCategory;
   receiptUrl?: string;
   isSettled: boolean;
+  isRecurring?: boolean;
+  recurringDay?: number;
+  notes?: string;
 }
 
 export type EventCategory = 'rotina' | 'limpeza' | 'pet' | 'contas' | 'social' | 'manutencao';

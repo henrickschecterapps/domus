@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Home, Copy, Check, RotateCcw, ShieldCheck, Sun, Moon, Laptop, Users, Sparkles } from 'lucide-react';
+import { Home, Copy, Check, RotateCcw, ShieldCheck, Sun, Moon, Laptop, Users, Sparkles, User } from 'lucide-react';
 import { Badge } from './untitled/Badge';
 
 import { AuthHouseModal } from './AuthHouseModal';
+import { UserProfileModal } from './UserProfileModal';
 import { TabType } from './Navbar';
 
 interface HeaderProps {
@@ -15,6 +16,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
   const [copied, setCopied] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   const copyInvite = () => {
     navigator.clipboard.writeText(house.inviteCode);
@@ -185,6 +187,17 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
                 </div>
 
                 <div className="pt-1.5 mt-1 border-t border-gray-100 dark:border-gray-800 px-1 space-y-0.5">
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      setIsProfileModalOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-brand-50 dark:hover:bg-brand-950/60 hover:text-brand-700 dark:hover:text-brand-300 transition-colors"
+                  >
+                    <User className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                    <span>Meu Perfil & Chave PIX</span>
+                  </button>
+
                   {onNavigateTab && (
                     <button
                       onClick={() => {
@@ -218,6 +231,11 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
       <AuthHouseModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
+      />
+
+      <UserProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
       />
     </header>
   );

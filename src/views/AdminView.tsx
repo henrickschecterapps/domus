@@ -33,10 +33,19 @@ import {
   Cloud,
   Database,
   Info,
+  Wifi,
+  Phone,
+  MessageCircle,
+  Gift,
+  User,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { Button } from '../components/untitled/Button';
 import { Badge } from '../components/untitled/Badge';
 import { AuthHouseModal } from '../components/AuthHouseModal';
+import { UserProfileModal } from '../components/UserProfileModal';
+import { EmergencyContact, HouseReward } from '../types';
 
 // Clean vector SVG QR code representation for the invite code
 const InviteQRCode: React.FC<{ code: string }> = ({ code }) => {
@@ -119,6 +128,12 @@ export const AdminView: React.FC = () => {
     showToast,
     isFirebaseConnected,
     syncToCloudNow,
+    updateWifiDetails,
+    addEmergencyContact,
+    deleteEmergencyContact,
+    addHouseReward,
+    claimHouseReward,
+    deleteHouseReward,
   } = useApp();
 
   // House identity form state
@@ -127,11 +142,32 @@ export const AdminView: React.FC = () => {
   const [weeklyGoalXP, setWeeklyGoalXP] = useState(house.weeklyGoalXP || 500);
   const [rulesNotes, setRulesNotes] = useState(house.rulesNotes || '');
 
+  // Wi-Fi form state
+  const [wifiSsid, setWifiSsid] = useState(house.wifiSsid || '');
+  const [wifiPassword, setWifiPassword] = useState(house.wifiPassword || '');
+  const [copiedWifiPass, setCopiedWifiPass] = useState(false);
+  const [showWifiPass, setShowWifiPass] = useState(false);
+
   // UI modals
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const [isAddRoomOpen, setIsAddRoomOpen] = useState(false);
   const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
+
+  // Emergency Contact Modal
+  const [isAddContactOpen, setIsAddContactOpen] = useState(false);
+  const [contactName, setContactName] = useState('');
+  const [contactCategory, setContactCategory] = useState<EmergencyContact['category']>('portaria');
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactNotes, setContactNotes] = useState('');
+
+  // Rewards Modal
+  const [isAddRewardOpen, setIsAddRewardOpen] = useState(false);
+  const [rewardTitle, setRewardTitle] = useState('');
+  const [rewardDesc, setRewardDesc] = useState('');
+  const [rewardXP, setRewardXP] = useState(300);
 
   // Forms
   const [newMemberName, setNewMemberName] = useState('');
@@ -183,6 +219,54 @@ VITE_FIREBASE_APP_ID=1:000000000000:web:abcdef123456`;
       weeklyGoalXP,
       rulesNotes,
     });
+  };
+
+  const handleSaveWifi = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateWifiDetails(wifiSsid.trim(), wifiPassword);
+  };
+
+  const handleCopyWifiPass = () => {
+    if (!house.wifiPassword) return;
+    navigator.clipboard.writeText(house.wifiPassword);
+    setCopiedWifiPass(true);
+    showToast('Senha do Wi-Fi copiada!', 'success');
+    setTimeout(() => setCopiedWifiPass(false), 2000);
+  };
+
+  const handleAddContactSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contactName.trim() || !contactPhone.trim()) {
+      showToast('Preencha nome e telefone.', 'warning');
+      return;
+    }
+    addEmergencyContact({
+      name: contactName.trim(),
+      category: contactCategory,
+      phone: contactPhone.trim(),
+      notes: contactNotes.trim() || undefined,
+    });
+    setContactName('');
+    setContactPhone('');
+    setContactNotes('');
+    setIsAddContactOpen(false);
+  };
+
+  const handleAddRewardSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rewardTitle.trim()) {
+      showToast('Preencha o título do prêmio.', 'warning');
+      return;
+    }
+    addHouseReward({
+      title: rewardTitle.trim(),
+      description: rewardDesc.trim() || '',
+      requiredXP: rewardXP,
+    });
+    setRewardTitle('');
+    setRewardDesc('');
+    setRewardXP(300);
+    setIsAddRewardOpen(false);
   };
 
   const handleCopyCode = () => {
@@ -483,6 +567,263 @@ VITE_FIREBASE_APP_ID=1:000000000000:web:abcdef123456`;
               )}
             </div>
           </section>
+
+          {/* Section: Wi-Fi da Residência */}
+          <section className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-sand-200 dark:border-gray-800 shadow-u-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Wifi className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                <h2 className="text-sm font-bold font-display text-gray-900 dark:text-white tracking-tight">
+                  Wi-Fi da Residência
+                </h2>
+              </div>
+              <Badge variant="brand" size="sm">Acesso Rápido</Badge>
+            </div>
+
+            <form onSubmit={handleSaveWifi} className="space-y-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                    Nome da Rede (SSID)
+                  </label>
+                  <input
+                    type="text"
+                    value={wifiSsid}
+                    onChange={(e) => setWifiSsid(e.target.value)}
+                    placeholder="Ex: Domus_5G_Home"
+                    className="w-full px-3.5 py-2 rounded-xl bg-sand-50/50 dark:bg-gray-800/80 border border-sand-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
+                    disabled={!isAdmin}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                    Senha da Rede
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showWifiPass ? 'text' : 'password'}
+                      value={wifiPassword}
+                      onChange={(e) => setWifiPassword(e.target.value)}
+                      placeholder="Senha do roteador"
+                      className="w-full pl-3.5 pr-20 py-2 rounded-xl bg-sand-50/50 dark:bg-gray-800/80 border border-sand-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all font-mono"
+                      disabled={!isAdmin}
+                    />
+                    <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowWifiPass(!showWifiPass)}
+                        className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                        title={showWifiPass ? 'Ocultar' : 'Mostrar'}
+                      >
+                        {showWifiPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCopyWifiPass}
+                        className="p-1 text-gray-400 hover:text-brand-600 dark:hover:text-brand-400"
+                        title="Copiar senha"
+                      >
+                        {copiedWifiPass ? <Check className="w-3.5 h-3.5 text-success-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {house.wifiSsid && (
+                <div className="p-3 bg-sand-50 dark:bg-gray-800/50 rounded-xl border border-sand-200/60 dark:border-gray-700/60 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-brand-50 dark:bg-brand-950/70 text-brand-600 dark:text-brand-400 flex items-center justify-center">
+                      <Wifi className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-900 dark:text-white">{house.wifiSsid}</p>
+                      <p className="text-[10px] text-gray-500">Pronto para conectar visitas e moradores</p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleCopyWifiPass}
+                    className="text-xs py-1"
+                  >
+                    {copiedWifiPass ? <Check className="w-3.5 h-3.5 text-success-600 mr-1" /> : <Copy className="w-3.5 h-3.5 mr-1" />}
+                    <span>{copiedWifiPass ? 'Copiada!' : 'Copiar Senha'}</span>
+                  </Button>
+                </div>
+              )}
+
+              {isAdmin && (
+                <div className="flex justify-end pt-1">
+                  <Button variant="primary" size="sm" type="submit">
+                    Salvar Wi-Fi
+                  </Button>
+                </div>
+              )}
+            </form>
+          </section>
+
+          {/* Section: Contatos de Emergência & Prestadores */}
+          <section className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-sand-200 dark:border-gray-800 shadow-u-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Phone className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                <h2 className="text-sm font-bold font-display text-gray-900 dark:text-white tracking-tight">
+                  Contatos Úteis & Emergência ({house.emergencyContacts?.length || 0})
+                </h2>
+              </div>
+              {isAdmin && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setIsAddContactOpen(true)}
+                  className="flex items-center gap-1 text-xs py-1 px-2.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Novo Contato</span>
+                </Button>
+              )}
+            </div>
+
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Acesso em 1 clique para todos os moradores ligarem para portaria, síndico ou chamarem prestadores via WhatsApp.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {(house.emergencyContacts || []).map((contact) => (
+                <div
+                  key={contact.id}
+                  className="p-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-sand-50/40 dark:bg-gray-800/40 hover:bg-white dark:hover:bg-gray-800 transition-all flex items-center justify-between"
+                >
+                  <div className="min-w-0 pr-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-gray-900 dark:text-white truncate">
+                        {contact.name}
+                      </span>
+                      <span className="text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded bg-sand-200/60 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                        {contact.category}
+                      </span>
+                    </div>
+                    <p className="text-xs text-brand-600 dark:text-brand-400 font-mono font-medium mt-0.5">
+                      {contact.phone}
+                    </p>
+                    {contact.notes && (
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate mt-0.5">
+                        {contact.notes}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <a
+                      href={`tel:${contact.phone.replace(/[^0-9+]/g, '')}`}
+                      className="p-1.5 text-gray-500 hover:text-brand-600 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-950/40 transition-colors"
+                      title="Ligar"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                    </a>
+                    <a
+                      href={`https://wa.me/${contact.phone.replace(/[^0-9]/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 text-success-600 hover:text-success-700 rounded-lg hover:bg-success-50 dark:hover:bg-success-950/40 transition-colors"
+                      title="WhatsApp"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                    </a>
+                    {isAdmin && (
+                      <button
+                        onClick={() => deleteEmergencyContact(contact.id)}
+                        className="p-1.5 text-gray-400 hover:text-error-600 rounded-lg hover:bg-error-50 dark:hover:bg-error-950/40 transition-colors"
+                        title="Remover contato"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Section: Recompensas do Lar (Gamificação Real) */}
+          <section className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-sand-200 dark:border-gray-800 shadow-u-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Gift className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                <h2 className="text-sm font-bold font-display text-gray-900 dark:text-white tracking-tight">
+                  Recompensas & Mimos da Casa ({house.rewards?.length || 0})
+                </h2>
+              </div>
+              {isAdmin && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setIsAddRewardOpen(true)}
+                  className="flex items-center gap-1 text-xs py-1 px-2.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Novo Prêmio</span>
+                </Button>
+              )}
+            </div>
+
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Incentive a harmonia: troque XP acumulado por folga de louça, escolha da pizza ou regalias decididas pelo lar!
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {(house.rewards || []).map((reward) => {
+                const canClaim = currentUser.totalXP >= reward.requiredXP;
+                return (
+                  <div
+                    key={reward.id}
+                    className="p-3.5 rounded-xl border border-sand-200/80 dark:border-gray-800 bg-sand-50/30 dark:bg-gray-800/40 flex flex-col justify-between space-y-3"
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <h4 className="text-xs font-bold text-gray-900 dark:text-white leading-snug">
+                          {reward.title}
+                        </h4>
+                        <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded-full flex-shrink-0">
+                          {reward.requiredXP} XP
+                        </span>
+                      </div>
+                      {reward.description && (
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                          {reward.description}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800">
+                      <Button
+                        variant={canClaim ? 'primary' : 'secondary'}
+                        size="sm"
+                        disabled={!canClaim}
+                        onClick={() => claimHouseReward(reward.id, currentUser.userId)}
+                        className="text-xs py-1 px-2.5"
+                      >
+                        {canClaim ? 'Resgatar' : `Faltam ${reward.requiredXP - currentUser.totalXP} XP`}
+                      </Button>
+
+                      {isAdmin && (
+                        <button
+                          onClick={() => deleteHouseReward(reward.id)}
+                          className="p-1 text-gray-400 hover:text-error-600 rounded-lg hover:bg-error-50 dark:hover:bg-error-950/40 transition-colors"
+                          title="Remover recompensa"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
         </div>
 
         {/* Right Column: Moradores, Cômodos & Backup (5 cols) */}
@@ -531,13 +872,31 @@ VITE_FIREBASE_APP_ID=1:000000000000:web:abcdef123456`;
                           <span className="text-[10px] text-brand-600 dark:text-brand-400 font-semibold">(Você)</span>
                         )}
                       </div>
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                        {member.role === 'admin' ? 'Administrador' : member.role === 'member' ? 'Residente' : 'Convidado'} • {member.totalXP} XP
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                          {member.role === 'admin' ? 'Administrador' : member.role === 'member' ? 'Residente' : 'Convidado'} • {member.totalXP} XP
+                        </p>
+                        {member.pixKey && (
+                          <span className="text-[9px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                            PIX
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button
+                      onClick={() => {
+                        setEditingMemberId(member.userId);
+                        setIsEditProfileModalOpen(true);
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-950/40 transition-colors"
+                      title="Editar perfil e chave PIX"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+
                     {isAdmin && (
                       <select
                         value={member.role}
@@ -938,6 +1297,176 @@ VITE_FIREBASE_APP_ID=1:000000000000:web:abcdef123456`}
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
       />
+
+      {/* Modal: Editar Perfil / Morador */}
+      <UserProfileModal
+        isOpen={isEditProfileModalOpen}
+        onClose={() => {
+          setIsEditProfileModalOpen(false);
+          setEditingMemberId(null);
+        }}
+        targetUserId={editingMemberId || undefined}
+      />
+
+      {/* Modal: Adicionar Contato de Emergência */}
+      {isAddContactOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-6 space-y-4 animate-in zoom-in-95 duration-150">
+            <h3 className="text-base font-bold font-display text-gray-900 dark:text-white">
+              Novo Contato Útil ou Emergência
+            </h3>
+            <form onSubmit={handleAddContactSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Nome do Contato ou Prestador *
+                </label>
+                <input
+                  type="text"
+                  value={contactName}
+                  onChange={(e) => setContactName(e.target.value)}
+                  placeholder="Ex: Portaria 24h, Encanador José, Síndico"
+                  className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                    Categoria
+                  </label>
+                  <select
+                    value={contactCategory}
+                    onChange={(e) => setContactCategory(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                  >
+                    <option value="portaria">Portaria</option>
+                    <option value="sindico">Síndico / Admin</option>
+                    <option value="encanador">Encanador</option>
+                    <option value="eletricista">Eletricista</option>
+                    <option value="chaveiro">Chaveiro</option>
+                    <option value="bombeiros">Bombeiros (193)</option>
+                    <option value="policia">Polícia (190)</option>
+                    <option value="outro">Outro Prestador</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                    Telefone / WhatsApp *
+                  </label>
+                  <input
+                    type="tel"
+                    value={contactPhone}
+                    onChange={(e) => setContactPhone(e.target.value)}
+                    placeholder="(11) 99999-9999"
+                    className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs font-mono focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Observações ou Horários (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={contactNotes}
+                  onChange={(e) => setContactNotes(e.target.value)}
+                  placeholder="Ex: Atende 24h, ramal 101"
+                  className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="tertiary"
+                  size="sm"
+                  onClick={() => setIsAddContactOpen(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" variant="primary" size="sm">
+                  Salvar Contato
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Adicionar Recompensa do Lar */}
+      {isAddRewardOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-6 space-y-4 animate-in zoom-in-95 duration-150">
+            <h3 className="text-base font-bold font-display text-gray-900 dark:text-white">
+              Nova Recompensa do Lar
+            </h3>
+            <p className="text-xs text-gray-500">
+              Crie um incentivo que os moradores podem resgatar ao acumularem pontuação em tarefas e cuidados da casa.
+            </p>
+            <form onSubmit={handleAddRewardSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Título da Recompensa *
+                </label>
+                <input
+                  type="text"
+                  value={rewardTitle}
+                  onChange={(e) => setRewardTitle(e.target.value)}
+                  placeholder="Ex: Folga da Louça na Sexta, Escolhe a Pizza, etc."
+                  className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Descrição (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={rewardDesc}
+                  onChange={(e) => setRewardDesc(e.target.value)}
+                  placeholder="Ex: Não precisa lavar louça nem limpar a bancada por um dia inteiro"
+                  className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Custo em Pontos (XP)
+                </label>
+                <input
+                  type="number"
+                  min="50"
+                  step="50"
+                  value={rewardXP}
+                  onChange={(e) => setRewardXP(Number(e.target.value))}
+                  className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="tertiary"
+                  size="sm"
+                  onClick={() => setIsAddRewardOpen(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" variant="primary" size="sm">
+                  Salvar Recompensa
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -12,6 +12,10 @@ import {
   ShoppingItem,
   Expense,
   MedicalRecord,
+  EmergencyContact,
+  HouseReward,
+  HouseNote,
+  PetWeightRecord,
 } from '../types';
 import {
   DEFAULT_HOUSE,
@@ -35,6 +39,8 @@ import {
 import { fireCelebrationConfetti } from '../utils/confetti';
 import { isFirebaseConfigured } from '../services/firebase';
 import { syncFullHouseToFirestore, subscribeToCloudHouse } from '../services/firestoreSync';
+import { triggerHaptic } from '../utils/haptics';
+import { playSoftPop, playSuccessChime, playCoinSound } from '../utils/soundEffects';
 
 interface ToastNotification {
   id: string;
@@ -56,6 +62,9 @@ interface AppContextType {
   addPet: (pet: Omit<Pet, 'id'>) => void;
   updatePet: (id: string, updates: Partial<Pet>) => void;
   deletePet: (id: string) => void;
+  updatePetPhoto: (petId: string, photoUrl: string) => void;
+  addPetWeightRecord: (petId: string, weightKg: number) => void;
+  updateVetContact: (petId: string, vetContact: Pet['vetContact']) => void;
   pantryItems: PantryItem[];
   shoppingItems: ShoppingItem[];
   expenses: Expense[];
@@ -63,9 +72,11 @@ interface AppContextType {
   removeToast: (id: string) => void;
   showToast: (message: string, type?: 'success' | 'warning' | 'info' | 'error') => void;
   switchUser: (userId: string) => void;
+  // Member & Profile actions
+  updateMemberProfile: (userId: string, data: Partial<HouseMember>) => void;
   // Chore actions
-  completeChore: (choreId: string) => { success: boolean; earnedXp?: number; reason?: string };
-  addChore: (roomId: string, title: string, frequencyDays: number, xpReward: number) => void;
+  completeChore: (choreId: string, proofUrl?: string) => { success: boolean; earnedXp?: number; reason?: string };
+  addChore: (roomId: string, title: string, frequencyDays: number, xpReward: number, difficulty?: 'facil' | 'medio' | 'pesado', estimatedMinutes?: number) => void;
   resetChoreTimer: (choreId: string, hoursAgo?: number) => void;
   // Pet actions
   scoopLitterBox: (petId?: string) => void;
@@ -109,8 +120,23 @@ interface AppContextType {
   importHouseData: (jsonContent: string) => { success: boolean; message?: string };
   resetWeeklyLeaderboard: () => void;
   resetAllToSeed: () => void;
+  // House Wi-Fi, Emergency, Rewards, Notes
+  updateWifiDetails: (wifiSsid: string, wifiPassword: string) => void;
+  addEmergencyContact: (contact: Omit<EmergencyContact, 'id'>) => void;
+  deleteEmergencyContact: (contactId: string) => void;
+  addHouseNote: (note: Omit<HouseNote, 'id' | 'createdAt'>) => void;
+  deleteHouseNote: (noteId: string) => void;
+  togglePinHouseNote: (noteId: string) => void;
+  addHouseReward: (reward: Omit<HouseReward, 'id'>) => void;
+  claimHouseReward: (rewardId: string, userId: string) => void;
+  deleteHouseReward: (rewardId: string) => void;
+  // Sensory & System
   theme: 'dark' | 'light' | 'system';
   setTheme: (theme: 'dark' | 'light' | 'system') => void;
+  soundEnabled: boolean;
+  setSoundEnabled: (enabled: boolean) => void;
+  vibrationEnabled: boolean;
+  setVibrationEnabled: (enabled: boolean) => void;
   isFirebaseConnected: boolean;
   syncToCloudNow: () => Promise<boolean>;
 }
@@ -226,6 +252,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
     applyThemeToDOM(newTheme);
     setThemeState(newTheme);
+  };
+
+  const [soundEnabled, setSoundEnabledState] = useState<boolean>(() => {
+    return loadFromStorage('soundEnabled', true);
+  });
+  const [vibrationEnabled, setVibrationEnabledState] = useState<boolean>(() => {
+    return loadFromStorage('vibrationEnabled', true);
+  });
+
+  const setSoundEnabled = (enabled: boolean) => {
+    saveToStorage('soundEnabled', enabled);
+    setSoundEnabledState(enabled);
+    if (enabled) playSoftPop(true);
+  };
+
+  const setVibrationEnabled = (enabled: boolean) => {
+    saveToStorage('vibrationEnabled', enabled);
+    setVibrationEnabledState(enabled);
+    if (enabled) triggerHaptic('light');
   };
 
   const currentUser = members.find((m) => m.userId === currentUserId) || members[0];
@@ -378,7 +423,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const completeChore = (choreId: string) => {
+  const completeChore = (choreId: string, proofUrl?: string) => {
     const chore = chores.find((c) => c.id === choreId);
     if (!chore) return { success: false, reason: 'Chore not found' };
 
@@ -392,6 +437,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { urgencyRatio } = calculateChoreUrgency(chore, now);
     const { earnedXp, isOverdueBonus } = calculateXpReward(chore.xpReward, urgencyRatio);
 
+    // Rotation: advance to next member in line if rotation is set
+    let nextRotationIndex = chore.currentRotationIndex;
+    let nextAssignedTo = chore.assignedTo;
+    if (chore.rotationUserIds && chore.rotationUserIds.length > 0) {
+      nextRotationIndex = ((chore.currentRotationIndex || 0) + 1) % chore.rotationUserIds.length;
+      nextAssignedTo = chore.rotationUserIds[nextRotationIndex];
+    }
+
     // Update chore optimistically
     const updatedChores = chores.map((c) => {
       if (c.id === choreId) {
@@ -404,6 +457,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           },
           urgencyScore: 0,
           statusLevel: 'clean' as const,
+          currentRotationIndex: nextRotationIndex,
+          assignedTo: nextAssignedTo,
+          completionProofUrl: proofUrl || c.completionProofUrl,
         };
       }
       return c;
@@ -420,6 +476,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       completedByName: currentUser.displayName,
       completedAt: now,
       xpEarned: earnedXp,
+      proofUrl,
     };
     setChoreLogs((prev) => [newLog, ...prev]);
 
@@ -439,6 +496,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     refreshScores(updatedChores);
     fireCelebrationConfetti();
+    playSuccessChime(soundEnabled);
+    triggerHaptic('success');
 
     if (isOverdueBonus) {
       showToast(`Tarefa urgente salva! +${earnedXp} XP (Bônus 1.5x)`, 'success');
@@ -471,7 +530,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Tempo da tarefa atualizado para demonstração', 'info');
   };
 
-  const addChore = (roomId: string, title: string, frequencyDays: number, xpReward: number) => {
+  const addChore = (
+    roomId: string,
+    title: string,
+    frequencyDays: number,
+    xpReward: number,
+    difficulty: 'facil' | 'medio' | 'pesado' = 'medio',
+    estimatedMinutes = 20
+  ) => {
+    const memberIds = members.map((m) => m.userId);
     const newChore: Chore = {
       id: 'chore_' + Date.now(),
       roomId,
@@ -479,15 +546,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       frequencyDays,
       lastCompletedAt: null,
       lastCompletedBy: null,
-      assignedTo: null,
+      assignedTo: memberIds[0] || null,
       xpReward,
       urgencyScore: 2.0,
       statusLevel: 'urgent',
+      difficulty,
+      estimatedMinutes,
+      rotationUserIds: memberIds,
+      currentRotationIndex: 0,
     };
 
     const updated = [...chores, newChore];
     setChores(updated);
     refreshScores(updated);
+    playSoftPop(soundEnabled);
+    triggerHaptic('light');
     showToast('Nova tarefa adicionada!', 'success');
   };
 
@@ -529,6 +602,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (remaining) setSelectedPetId(remaining.id);
     }
     showToast(`Pet "${petToDelete?.name || ''}" removido.`, 'info');
+  };
+
+  const updatePetPhoto = (petId: string, photoUrl: string) => {
+    updatePet(petId, { photoUrl });
+    playSoftPop(soundEnabled);
+    showToast('Foto do pet atualizada!', 'success');
+  };
+
+  const addPetWeightRecord = (petId: string, weightKg: number) => {
+    setPets((prev) =>
+      prev.map((p) => {
+        if (p.id === petId) {
+          const history = p.weightHistory || [];
+          return {
+            ...p,
+            weightKg,
+            weightHistory: [...history, { date: Date.now(), weightKg }],
+          };
+        }
+        return p;
+      })
+    );
+    playSoftPop(soundEnabled);
+    triggerHaptic('light');
+    showToast(`Peso de ${weightKg}kg registrado para o pet!`, 'success');
+  };
+
+  const updateVetContact = (petId: string, vetContact: Pet['vetContact']) => {
+    updatePet(petId, { vetContact });
+    showToast('Contato do veterinário atualizado!', 'success');
   };
 
   const logPetCareAction = (petId: string, actionType: PetCareLog['actionType'], title: string, xpReward: number) => {
@@ -832,6 +935,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       prev.map((item) => {
         if (item.id === id) {
           const isBought = !item.isBought;
+          if (isBought) {
+            playSoftPop(soundEnabled);
+            triggerHaptic('light');
+          }
           return { ...item, isBought };
         }
         return item;
@@ -869,6 +976,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Mark as bought and remove from active list
     setShoppingItems((prev) => prev.filter((s) => s.id !== id));
     fireCelebrationConfetti();
+    playSuccessChime(soundEnabled);
+    triggerHaptic('medium');
     showToast(`"${item.name}" movido para a despensa!`, 'success');
   };
 
@@ -888,14 +997,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: 'exp_' + Date.now(),
     };
     setExpenses((prev) => [newExpense, ...prev]);
+    playCoinSound(soundEnabled);
+    triggerHaptic('medium');
     showToast(`Despesa "${expense.description}" registrada!`, 'success');
   };
 
   const toggleExpenseSettled = (id: string) => {
     setExpenses((prev) =>
-      prev.map((exp) =>
-        exp.id === id ? { ...exp, isSettled: !exp.isSettled } : exp
-      )
+      prev.map((exp) => {
+        if (exp.id === id) {
+          const nextState = !exp.isSettled;
+          if (nextState) {
+            playCoinSound(soundEnabled);
+            triggerHaptic('success');
+            fireCelebrationConfetti();
+          } else {
+            triggerHaptic('light');
+          }
+          return { ...exp, isSettled: nextState };
+        }
+        return exp;
+      })
     );
     showToast('Status da despesa atualizado', 'info');
   };
@@ -1192,6 +1314,127 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Dados restaurados para o padrão inicial', 'success');
   };
 
+  const updateMemberProfile = (userId: string, data: Partial<HouseMember>) => {
+    setMembers((prev) =>
+      prev.map((m) => {
+        if (m.userId === userId) {
+          return { ...m, ...data };
+        }
+        return m;
+      })
+    );
+    showToast('Perfil do morador atualizado!', 'success');
+  };
+
+  const updateWifiDetails = (wifiSsid: string, wifiPassword: string) => {
+    setHouse((prev) => ({
+      ...prev,
+      wifiSsid,
+      wifiPassword,
+    }));
+    playSoftPop(soundEnabled);
+    triggerHaptic('light');
+    showToast('Dados de Wi-Fi atualizados!', 'success');
+  };
+
+  const addEmergencyContact = (contact: Omit<EmergencyContact, 'id'>) => {
+    const newContact: EmergencyContact = {
+      ...contact,
+      id: 'contact_' + Date.now(),
+    };
+    setHouse((prev) => ({
+      ...prev,
+      emergencyContacts: [...(prev.emergencyContacts || []), newContact],
+    }));
+    playSoftPop(soundEnabled);
+    triggerHaptic('light');
+    showToast(`Contato "${contact.name}" adicionado!`, 'success');
+  };
+
+  const deleteEmergencyContact = (contactId: string) => {
+    setHouse((prev) => ({
+      ...prev,
+      emergencyContacts: (prev.emergencyContacts || []).filter((c) => c.id !== contactId),
+    }));
+    showToast('Contato removido.', 'info');
+  };
+
+  const addHouseNote = (note: Omit<HouseNote, 'id' | 'createdAt'>) => {
+    const newNote: HouseNote = {
+      ...note,
+      id: 'note_' + Date.now(),
+      createdAt: Date.now(),
+    };
+    setHouse((prev) => ({
+      ...prev,
+      notes: [newNote, ...(prev.notes || [])],
+    }));
+    playSoftPop(soundEnabled);
+    triggerHaptic('medium');
+    showToast('Recado fixado no mural!', 'success');
+  };
+
+  const deleteHouseNote = (noteId: string) => {
+    setHouse((prev) => ({
+      ...prev,
+      notes: (prev.notes || []).filter((n) => n.id !== noteId),
+    }));
+    showToast('Recado removido.', 'info');
+  };
+
+  const togglePinHouseNote = (noteId: string) => {
+    setHouse((prev) => ({
+      ...prev,
+      notes: (prev.notes || []).map((n) => (n.id === noteId ? { ...n, isPinned: !n.isPinned } : n)),
+    }));
+  };
+
+  const addHouseReward = (reward: Omit<HouseReward, 'id'>) => {
+    const newReward: HouseReward = {
+      ...reward,
+      id: 'rew_' + Date.now(),
+    };
+    setHouse((prev) => ({
+      ...prev,
+      rewards: [...(prev.rewards || []), newReward],
+    }));
+    playSoftPop(soundEnabled);
+    triggerHaptic('light');
+    showToast(`Recompensa "${reward.title}" cadastrada!`, 'success');
+  };
+
+  const claimHouseReward = (rewardId: string, userId: string) => {
+    const reward = (house.rewards || []).find((r) => r.id === rewardId);
+    const member = members.find((m) => m.userId === userId);
+    if (!reward || !member) return;
+
+    if (member.weeklyXP < reward.requiredXP) {
+      showToast(`${member.displayName} precisa de ${reward.requiredXP} XP nesta semana para resgatar.`, 'warning');
+      return;
+    }
+
+    setHouse((prev) => ({
+      ...prev,
+      rewards: (prev.rewards || []).map((r) =>
+        r.id === rewardId
+          ? { ...r, claimedByUserId: userId, claimedAt: Date.now() }
+          : r
+      ),
+    }));
+    fireCelebrationConfetti();
+    playSuccessChime(soundEnabled);
+    triggerHaptic('success');
+    showToast(`Parabéns! ${member.displayName} conquistou: ${reward.title}! 🎉`, 'success');
+  };
+
+  const deleteHouseReward = (rewardId: string) => {
+    setHouse((prev) => ({
+      ...prev,
+      rewards: (prev.rewards || []).filter((r) => r.id !== rewardId),
+    }));
+    showToast('Recompensa removida.', 'info');
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -1208,6 +1451,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addPet,
         updatePet,
         deletePet,
+        updatePetPhoto,
+        addPetWeightRecord,
+        updateVetContact,
         pantryItems,
         shoppingItems,
         expenses,
@@ -1215,6 +1461,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         removeToast,
         showToast,
         switchUser,
+        updateMemberProfile,
         completeChore,
         addChore,
         resetChoreTimer,
@@ -1254,8 +1501,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         importHouseData,
         resetWeeklyLeaderboard,
         resetAllToSeed,
+        updateWifiDetails,
+        addEmergencyContact,
+        deleteEmergencyContact,
+        addHouseNote,
+        deleteHouseNote,
+        togglePinHouseNote,
+        addHouseReward,
+        claimHouseReward,
+        deleteHouseReward,
         theme,
         setTheme,
+        soundEnabled,
+        setSoundEnabled,
+        vibrationEnabled,
+        setVibrationEnabled,
         isFirebaseConnected: isFirebaseConfigured,
         syncToCloudNow,
       }}

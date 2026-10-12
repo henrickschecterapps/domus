@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Sparkles,
@@ -20,6 +20,12 @@ import {
   Edit3,
   ChevronRight,
   TrendingUp,
+  Camera,
+  Phone,
+  MessageCircle,
+  Scale,
+  MapPin,
+  X,
 } from 'lucide-react';
 import { MedicalRecord, Pet } from '../types';
 import { Button } from '../components/untitled/Button';
@@ -44,6 +50,9 @@ export const PetView: React.FC = () => {
     addPet,
     updatePet,
     deletePet,
+    updatePetPhoto,
+    addPetWeightRecord,
+    updateVetContact,
     scoopLitterBox,
     fullChangeLitterBox,
     walkDog,
@@ -58,6 +67,10 @@ export const PetView: React.FC = () => {
   const [showAddMedSheet, setShowAddMedSheet] = useState(false);
   const [showPetModal, setShowPetModal] = useState(false);
   const [editingPet, setEditingPet] = useState<Pet | null>(null);
+  const [showVetModal, setShowVetModal] = useState(false);
+
+  // File ref for real pet photo upload
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   // Medical Record form state
   const [medName, setMedName] = useState('');
@@ -73,6 +86,15 @@ export const PetView: React.FC = () => {
   const [formFoodBrand, setFormFoodBrand] = useState('');
   const [formDailyGrams, setFormDailyGrams] = useState('70');
   const [formStockGrams, setFormStockGrams] = useState('3000');
+
+  // Vet form state
+  const [vetName, setVetName] = useState(pet.vetContact?.name || '');
+  const [vetPhone, setVetPhone] = useState(pet.vetContact?.phone || '');
+  const [vetClinic, setVetClinic] = useState(pet.vetContact?.clinicName || '');
+  const [vetAddress, setVetAddress] = useState(pet.vetContact?.address || '');
+
+  // Weight form state
+  const [newWeightInput, setNewWeightInput] = useState('');
 
   const now = Date.now();
   const dayMs = 86_400_000;
@@ -143,6 +165,22 @@ export const PetView: React.FC = () => {
     setFormDailyGrams(String(targetPet.feeding.dailyConsumptionGrams || 65));
     setFormStockGrams(String(targetPet.feeding.currentStockGrams || 3000));
     setShowPetModal(true);
+  };
+
+  const handlePhotoUploadDirect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 4 * 1024 * 1024) {
+      showToast('Imagem muito grande. Máximo 4MB.', 'warning');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      updatePetPhoto(pet.id, reader.result as string);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSavePet = (e: React.FormEvent) => {
@@ -235,6 +273,32 @@ export const PetView: React.FC = () => {
     setMedName('');
     setMedCost('');
     setShowAddMedSheet(false);
+  };
+
+  const handleAddWeight = (e: React.FormEvent) => {
+    e.preventDefault();
+    const parsed = parseFloat(newWeightInput.replace(',', '.'));
+    if (isNaN(parsed) || parsed <= 0) {
+      showToast('Digite um peso válido.', 'warning');
+      return;
+    }
+    addPetWeightRecord(pet.id, parsed);
+    setNewWeightInput('');
+  };
+
+  const handleSaveVetContact = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!vetName.trim() || !vetPhone.trim()) {
+      showToast('Preencha nome e telefone do veterinário.', 'warning');
+      return;
+    }
+    updateVetContact(pet.id, {
+      name: vetName.trim(),
+      phone: vetPhone.trim(),
+      clinicName: vetClinic.trim() || undefined,
+      address: vetAddress.trim() || undefined,
+    });
+    setShowVetModal(false);
   };
 
   return (
@@ -336,11 +400,22 @@ export const PetView: React.FC = () => {
       <div className="rounded-2xl bg-gradient-to-br from-sand-100/80 via-white to-brand-50/30 dark:from-gray-900 dark:via-gray-900/90 dark:to-gray-800/60 border border-sand-200 dark:border-gray-800 p-6 shadow-u-xs">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
           <div className="flex items-center gap-5">
-            <div className="relative">
+            <div className="relative group cursor-pointer" onClick={() => photoInputRef.current?.click()}>
               <img
                 src={pet.photoUrl}
                 alt={pet.name}
                 className="w-20 h-20 rounded-2xl object-cover ring-2 ring-white dark:ring-gray-700 shadow-u-sm"
+              />
+              <div className="absolute inset-0 bg-black/40 rounded-2xl flex flex-col items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                <Camera className="w-5 h-5" />
+                <span className="text-[9px] font-bold mt-0.5">Trocar</span>
+              </div>
+              <input
+                type="file"
+                ref={photoInputRef}
+                onChange={handlePhotoUploadDirect}
+                accept="image/*"
+                className="hidden"
               />
               <span className="absolute -bottom-1.5 -right-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand-500 text-white shadow-xs">
                 {isCat ? 'Felino' : isDog ? 'Canino' : 'Pet'}
@@ -449,8 +524,7 @@ export const PetView: React.FC = () => {
                   onClick={() => scoopLitterBox(pet.id)}
                   className="w-full justify-center text-xs"
                 >
-                  <Sparkles className="w-3.5 h-3.5 mr-1" />
-                  <span>Recolhi (+10 XP)</span>
+                  Peneirar (+15 XP)
                 </Button>
               </div>
 
@@ -458,17 +532,17 @@ export const PetView: React.FC = () => {
               <div className="p-3.5 rounded-xl bg-sand-50/50 dark:bg-gray-800/60 border border-sand-200/60 dark:border-gray-800 flex flex-col justify-between">
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
-                    Troca Total
+                    Troca Completa (8 dias)
                   </span>
                   <span
                     className={`text-lg font-black font-display block ${
-                      isChangeUrgent ? 'text-error-600' : 'text-warning-600'
+                      isChangeUrgent ? 'text-error-600' : 'text-gray-900 dark:text-white'
                     }`}
                   >
-                    {daysSinceFullChange} dias
+                    {daysUntilFullChange <= 0 ? 'Hoje!' : `em ${daysUntilFullChange}d`}
                   </span>
                   <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 mb-3">
-                    {daysUntilFullChange <= 0 ? 'Troca vencida!' : `Restam ~${daysUntilFullChange} dias`}
+                    Última há {daysSinceFullChange} dias
                   </p>
                 </div>
 
@@ -476,27 +550,16 @@ export const PetView: React.FC = () => {
                   variant="secondary"
                   size="sm"
                   onClick={() => fullChangeLitterBox(pet.id)}
-                  className="w-full justify-center text-xs text-brand-700 dark:text-brand-300"
+                  className="w-full justify-center text-xs"
                 >
-                  <Sparkles className="w-3.5 h-3.5 mr-1" />
-                  <span>Troquei (+30 XP)</span>
+                  Lavar Caixa (+40 XP)
                 </Button>
               </div>
-            </div>
-
-            <div className="pt-1 flex justify-end">
-              <button
-                onClick={() => addPetFoodToShopping('litter', pet.id)}
-                className="text-xs text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1 font-medium"
-              >
-                <ShoppingBag className="w-3 h-3" />
-                <span>Pedir areia na Lista de Compras</span>
-              </button>
             </div>
           </div>
         )}
 
-        {/* === ADAPTATIVO: CÃO (Passeios & Banho) === */}
+        {/* === ADAPTATIVO: CÃO (Passeios & Banhos) === */}
         {isDog && (
           <div className="rounded-2xl bg-white dark:bg-gray-900 border border-sand-200 dark:border-gray-800 p-5 shadow-u-xs space-y-4">
             <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
@@ -506,36 +569,29 @@ export const PetView: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider font-display">
-                    Passeios Diários & Higiene
+                    Passeios & Higiene Canina
                   </h3>
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400">Atividades externas e bem-estar</p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">Metas diárias de caminhada e banho</p>
                 </div>
               </div>
 
-              <Badge
-                variant={isWalkPending ? 'warning' : 'success'}
-                size="sm"
-                dot
-              >
-                {isWalkPending ? `${walksToday}/${targetWalks} Passeios` : 'Meta Atingida'}
+              <Badge variant={isWalkPending ? 'warning' : 'success'} size="sm" dot>
+                {isWalkPending ? 'Meta Pendente' : 'Meta Atingida'}
               </Badge>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              {/* Daily Walk */}
+              {/* Passeio */}
               <div className="p-3.5 rounded-xl bg-sand-50/50 dark:bg-gray-800/60 border border-sand-200/60 dark:border-gray-800 flex flex-col justify-between">
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
-                    Passeios Hoje
+                    Passeios de Hoje
                   </span>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-black font-display text-gray-900 dark:text-white">
-                      {walksToday}
-                    </span>
-                    <span className="text-xs text-gray-500">de {targetWalks}</span>
-                  </div>
+                  <span className="text-lg font-black font-display text-gray-900 dark:text-white block">
+                    {walksToday} / {targetWalks}
+                  </span>
                   <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 mb-3">
-                    {hoursSinceWalk < 24 ? `Último há ${hoursSinceWalk}h` : 'Nenhum hoje'}
+                    {hoursSinceWalk === 999 ? 'Sem registro hoje' : `Último há ${hoursSinceWalk}h`}
                   </p>
                 </div>
 
@@ -545,12 +601,11 @@ export const PetView: React.FC = () => {
                   onClick={() => walkDog(pet.id)}
                   className="w-full justify-center text-xs"
                 >
-                  <Footprints className="w-3.5 h-3.5 mr-1" />
-                  <span>Passear (+25 XP)</span>
+                  Registrar Passeio (+25 XP)
                 </Button>
               </div>
 
-              {/* Bath & Grooming */}
+              {/* Banho */}
               <div className="p-3.5 rounded-xl bg-sand-50/50 dark:bg-gray-800/60 border border-sand-200/60 dark:border-gray-800 flex flex-col justify-between">
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
@@ -558,10 +613,10 @@ export const PetView: React.FC = () => {
                   </span>
                   <span
                     className={`text-lg font-black font-display block ${
-                      isBathDue ? 'text-error-600' : 'text-success-600 dark:text-success-400'
+                      isBathDue ? 'text-error-600' : 'text-gray-900 dark:text-white'
                     }`}
                   >
-                    {daysSinceBath} dias
+                    {daysSinceBath}d atrás
                   </span>
                   <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 mb-3">
                     Intervalo de {bathInterval} dias
@@ -574,26 +629,25 @@ export const PetView: React.FC = () => {
                   onClick={() => bathDog(pet.id)}
                   className="w-full justify-center text-xs"
                 >
-                  <Bath className="w-3.5 h-3.5 mr-1" />
-                  <span>Banho (+35 XP)</span>
+                  Banho Dado (+35 XP)
                 </Button>
               </div>
             </div>
           </div>
         )}
 
-        {/* === ALIMENTAÇÃO & ESTOQUE (Ambos) === */}
+        {/* === ALIMENTAÇÃO & ESTOQUE DE RAÇÃO === */}
         <div className="rounded-2xl bg-white dark:bg-gray-900 border border-sand-200 dark:border-gray-800 p-5 shadow-u-xs space-y-4">
           <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-success-50 dark:bg-success-950/60 border border-success-200/50 text-success-600 dark:text-success-400 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200/50 text-brand-600 dark:text-brand-400 flex items-center justify-center">
                 <Package className="w-4 h-4 stroke-[2.2]" />
               </div>
               <div>
                 <h3 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider font-display">
-                  Alimentação & Estoque
+                  Alimentação & Despensa
                 </h3>
-                <p className="text-[11px] text-gray-500 dark:text-gray-400">Consumo diário e alertas de compra</p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400">Controle do estoque de ração</p>
               </div>
             </div>
 
@@ -658,7 +712,7 @@ export const PetView: React.FC = () => {
             </div>
           </div>
 
-          {/* Sachês Úmidos (se configurado ou gato) */}
+          {/* Sachês Úmidos */}
           {(isCat || pet.feeding?.sachetStockCount !== undefined) && (
             <div className="p-3.5 rounded-xl bg-sand-50/50 dark:bg-gray-800/60 border border-sand-200/60 dark:border-gray-800 flex items-center justify-between gap-3">
               <div>
@@ -711,7 +765,7 @@ export const PetView: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. Controle Veterinário & Finanças */}
+      {/* 4. Controle Veterinário & Saúde */}
       <div className="rounded-2xl bg-white dark:bg-gray-900 border border-sand-200 dark:border-gray-800 p-6 shadow-u-xs space-y-4">
         <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
           <div className="flex items-center gap-2.5">
@@ -720,7 +774,7 @@ export const PetView: React.FC = () => {
             </div>
             <div>
               <h3 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider font-display">
-                Controle Veterinário & Saúde
+                Controle de Vacinas & Antiparasitários
               </h3>
               <p className="text-[11px] text-gray-500 dark:text-gray-400">
                 Vacinas, vermífugos e despesas médicas de {pet.name}
@@ -746,7 +800,8 @@ export const PetView: React.FC = () => {
           ) : (
             pet.medicalRecords?.map((med) => {
               const daysToDue = Math.ceil((med.nextDueDate - now) / dayMs);
-              const isDueSoon = daysToDue <= 15;
+              const isOverdue = daysToDue < 0;
+              const isDueSoon = daysToDue <= 15 && daysToDue >= 0;
 
               return (
                 <div
@@ -775,15 +830,15 @@ export const PetView: React.FC = () => {
 
                   <div className="text-right flex-shrink-0">
                     <span
-                      className={`text-xs font-bold font-display ${
-                        daysToDue < 0
-                          ? 'text-error-600'
+                      className={`text-xs font-bold font-display px-2 py-0.5 rounded-full inline-block ${
+                        isOverdue
+                          ? 'bg-error-50 text-error-700 dark:bg-error-950 dark:text-error-400'
                           : isDueSoon
-                          ? 'text-warning-600'
-                          : 'text-success-600 dark:text-success-400'
+                          ? 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
+                          : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
                       }`}
                     >
-                      {daysToDue < 0 ? 'Vencido' : daysToDue === 0 ? 'Hoje' : `em ${daysToDue}d`}
+                      {isOverdue ? `Vencido há ${Math.abs(daysToDue)}d` : daysToDue === 0 ? 'Vence Hoje' : `Vence em ${daysToDue}d`}
                     </span>
                     <span className="text-[9px] text-gray-400 block mt-0.5">próxima dose</span>
                   </div>
@@ -794,7 +849,144 @@ export const PetView: React.FC = () => {
         </div>
       </div>
 
-      {/* 5. Feed Colaborativo de Atividades Recentes do Pet */}
+      {/* 5. Emergência Veterinária & Histórico de Peso (Grid 2 cols) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* Veterinário de Emergência Card */}
+        <div className="rounded-2xl bg-white dark:bg-gray-900 border border-sand-200 dark:border-gray-800 p-5 shadow-u-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-error-50 dark:bg-error-950/60 border border-error-200/50 text-error-600 dark:text-error-400 flex items-center justify-center">
+                <HeartPulse className="w-4 h-4 stroke-[2.2]" />
+              </div>
+              <div>
+                <h3 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider font-display">
+                  Veterinário & Clínica 24h
+                </h3>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400">Atendimento de emergência</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                setVetName(pet.vetContact?.name || '');
+                setVetPhone(pet.vetContact?.phone || '');
+                setVetClinic(pet.vetContact?.clinicName || '');
+                setVetAddress(pet.vetContact?.address || '');
+                setShowVetModal(true);
+              }}
+              className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>{pet.vetContact ? 'Editar' : 'Cadastrar'}</span>
+            </button>
+          </div>
+
+          {pet.vetContact ? (
+            <div className="p-4 rounded-xl bg-sand-50/50 dark:bg-gray-800/40 border border-sand-200/60 dark:border-gray-800 space-y-3">
+              <div>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white">
+                    {pet.vetContact.name}
+                  </h4>
+                  {pet.vetContact.clinicName && (
+                    <span className="text-[10px] font-semibold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/60 px-2 py-0.5 rounded">
+                      {pet.vetContact.clinicName}
+                    </span>
+                  )}
+                </div>
+                {pet.vetContact.address && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                    <span>{pet.vetContact.address}</span>
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 pt-2 border-t border-gray-200/50 dark:border-gray-700/50">
+                <a
+                  href={`tel:${pet.vetContact.phone.replace(/[^0-9+]/g, '')}`}
+                  className="flex-1 py-2 px-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-u-xs transition-all active:scale-95"
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  <span>Ligar Agora</span>
+                </a>
+                <a
+                  href={`https://wa.me/${pet.vetContact.phone.replace(/[^0-9]/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 py-2 px-3 rounded-xl bg-success-600 hover:bg-success-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-u-xs transition-all active:scale-95"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>WhatsApp</span>
+                </a>
+              </div>
+            </div>
+          ) : (
+            <div className="p-4 rounded-xl bg-sand-50/40 dark:bg-gray-800/40 text-center text-gray-400 text-xs">
+              Nenhum veterinário cadastrado para {pet.name}. Clique em cadastrar para ter acesso rápido em caso de urgência.
+            </div>
+          )}
+        </div>
+
+        {/* Histórico de Peso & Evolução Card */}
+        <div className="rounded-2xl bg-white dark:bg-gray-900 border border-sand-200 dark:border-gray-800 p-5 shadow-u-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200/50 text-brand-600 dark:text-brand-400 flex items-center justify-center">
+                <Scale className="w-4 h-4 stroke-[2.2]" />
+              </div>
+              <div>
+                <h3 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider font-display">
+                  Histórico de Peso
+                </h3>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400">Acompanhamento da massa corporal</p>
+              </div>
+            </div>
+            {pet.weightKg && (
+              <span className="text-sm font-black font-display text-gray-900 dark:text-white">
+                {pet.weightKg} kg
+              </span>
+            )}
+          </div>
+
+          <form onSubmit={handleAddWeight} className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Novo peso (ex: 4.8)"
+              value={newWeightInput}
+              onChange={(e) => setNewWeightInput(e.target.value)}
+              className="flex-1 px-3.5 py-2 rounded-xl bg-sand-50/60 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white font-semibold focus:outline-none"
+            />
+            <Button variant="primary" size="sm" type="submit" className="text-xs">
+              Registrar
+            </Button>
+          </form>
+
+          <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+            {(!pet.weightHistory || pet.weightHistory.length === 0) ? (
+              <p className="text-xs text-gray-400 py-2 text-center">
+                Nenhum histórico de pesagem anterior.
+              </p>
+            ) : (
+              pet.weightHistory.map((w, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between p-2 rounded-lg bg-sand-50/30 dark:bg-gray-800/30 text-xs border border-gray-100 dark:border-gray-800"
+                >
+                  <span className="text-gray-500 dark:text-gray-400 text-[11px]">
+                    {new Date(w.date).toLocaleDateString('pt-BR')}
+                  </span>
+                  <span className="font-bold text-gray-900 dark:text-white">
+                    {w.weightKg} kg
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 6. Feed Colaborativo de Atividades Recentes do Pet */}
       <div className="rounded-2xl bg-white dark:bg-gray-900 border border-sand-200 dark:border-gray-800 p-6 shadow-u-xs space-y-4">
         <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
           <div className="flex items-center gap-2">
@@ -858,7 +1050,7 @@ export const PetView: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL: Adicionar / Editar Pet (Ficha Simples e Rápida) */}
+      {/* MODAL: Adicionar / Editar Pet */}
       {showPetModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150">
           <div className="w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
@@ -987,7 +1179,7 @@ export const PetView: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL: Adicionar Registro Veterinário & Lançamento em Finanças */}
+      {/* MODAL: Adicionar Registro Veterinário */}
       {showAddMedSheet && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150">
           <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-6 space-y-4">
@@ -1073,6 +1265,95 @@ export const PetView: React.FC = () => {
                 </Button>
                 <Button type="submit" variant="primary" size="sm">
                   Salvar Registro (+20 XP)
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Editar Contato do Veterinário */}
+      {showVetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-6 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-gray-800">
+              <h3 className="text-base font-bold font-display text-gray-900 dark:text-white">
+                Veterinário de Emergência ({pet.name})
+              </h3>
+              <button
+                onClick={() => setShowVetModal(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveVetContact} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Nome do Veterinário(a) *
+                </label>
+                <input
+                  type="text"
+                  value={vetName}
+                  onChange={(e) => setVetName(e.target.value)}
+                  placeholder="Ex: Dra. Camila Rocha"
+                  className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Telefone / WhatsApp 24h *
+                </label>
+                <input
+                  type="tel"
+                  value={vetPhone}
+                  onChange={(e) => setVetPhone(e.target.value)}
+                  placeholder="(11) 98765-4321"
+                  className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs font-mono focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Nome da Clínica ou Hospital
+                </label>
+                <input
+                  type="text"
+                  value={vetClinic}
+                  onChange={(e) => setVetClinic(e.target.value)}
+                  placeholder="Ex: Hospital Veterinário Santa Inês"
+                  className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Endereço
+                </label>
+                <input
+                  type="text"
+                  value={vetAddress}
+                  onChange={(e) => setVetAddress(e.target.value)}
+                  placeholder="Ex: Av. Pompeia, 1200 - Perdizes"
+                  className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                <Button
+                  type="button"
+                  variant="tertiary"
+                  size="sm"
+                  onClick={() => setShowVetModal(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" variant="primary" size="sm">
+                  Salvar Contato
                 </Button>
               </div>
             </form>

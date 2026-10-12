@@ -4,12 +4,12 @@ import { RoomCard } from '../components/RoomCard';
 import { RoomModal } from '../components/RoomModal';
 import { Room, RoomStatusLevel } from '../types';
 import { calculateChoreUrgency } from '../utils/cleaningMath';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Gift } from 'lucide-react';
 import { SegmentedControl } from '../components/SegmentedControl';
 import { Badge } from '../components/untitled/Badge';
 
 export const CleaningView: React.FC = () => {
-  const { rooms, chores } = useApp();
+  const { rooms, chores, house, currentUser, claimHouseReward } = useApp();
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [filter, setFilter] = useState<'all' | RoomStatusLevel>('all');
 
@@ -43,14 +43,14 @@ export const CleaningView: React.FC = () => {
             </div>
           </div>
           <Badge variant="brand" size="md">
-            9 Ambientes Mapeados
+            {rooms.length} Ambientes Mapeados
           </Badge>
         </div>
 
         {/* Untitled UI Segmented Filter */}
         <SegmentedControl
           options={[
-            { id: 'all', label: 'Todos', count: 9 },
+            { id: 'all', label: 'Todos', count: rooms.length },
             { id: 'urgent', label: 'Urgentes', count: urgentCount },
             { id: 'warning', label: 'Atenção', count: warningCount },
             { id: 'clean', label: 'Limpos', count: cleanCount },
@@ -59,6 +59,48 @@ export const CleaningView: React.FC = () => {
           onChange={(v) => setFilter(v)}
         />
       </div>
+
+      {/* Active House Rewards showcase banner */}
+      {(house.rewards || []).length > 0 && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-brand-500/10 to-emerald-500/10 border border-amber-200/60 dark:border-amber-900/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-u-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0">
+              <Gift className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-gray-900 dark:text-white">
+                Recompensas Ativas do Lar ({house.rewards?.length})
+              </h4>
+              <p className="text-[11px] text-gray-600 dark:text-gray-400">
+                Seu saldo: <strong className="text-amber-600 dark:text-amber-400 font-bold">{currentUser.totalXP} XP</strong>. Conclua tarefas para resgatar folga de louça ou mimos da casa!
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-1 sm:pb-0">
+            {(house.rewards || []).slice(0, 3).map((reward) => {
+              const canClaim = currentUser.totalXP >= reward.requiredXP;
+              return (
+                <button
+                  key={reward.id}
+                  onClick={() => canClaim && claimHouseReward(reward.id, currentUser.userId)}
+                  disabled={!canClaim}
+                  className={`text-[11px] font-bold px-2.5 py-1 rounded-xl border flex items-center gap-1.5 transition-all flex-shrink-0 ${
+                    canClaim
+                      ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600 shadow-u-xs active:scale-95 cursor-pointer'
+                      : 'bg-white/60 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 cursor-default'
+                  }`}
+                  title={reward.description}
+                >
+                  <span>{reward.title}</span>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-black/10 dark:bg-white/10 font-bold">
+                    {reward.requiredXP} XP
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Rooms Grid: responsive 2 to 5 columns on wide monitors */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">

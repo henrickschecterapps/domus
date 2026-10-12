@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { PantryCategory, PantryItem, ShoppingItem } from '../types';
+import {
+  PantryCategory,
+  PantryItem,
+  ShoppingItem,
+  ShoppingAisleCategory,
+} from '../types';
 import {
   ShoppingCart,
   Package,
@@ -8,9 +13,30 @@ import {
   Check,
   Trash2,
   Archive,
+  Calendar,
+  AlertTriangle,
+  DollarSign,
+  Tag,
+  CheckCircle2,
+  Clock,
 } from 'lucide-react';
 import { SegmentedControl } from '../components/SegmentedControl';
 import { BottomSheet } from '../components/BottomSheet';
+import { formatCurrencyBRL } from '../utils/financeMath';
+import { Badge } from '../components/untitled/Badge';
+import { Button } from '../components/untitled/Button';
+
+const AISLE_LABELS: Record<ShoppingAisleCategory, string> = {
+  hortifruti: '🥦 Hortifruti & Feira',
+  carnes: '🥩 Carnes & Frios',
+  laticinios: '🧀 Laticínios & Ovos',
+  mercearia: '🥫 Mercearia & Mantimentos',
+  limpeza: '🧼 Limpeza & Cuidados',
+  bebidas: '🥤 Bebidas',
+  padaria: '🥖 Padaria & Pães',
+  pet: '🐾 Rações & Pet Care',
+  outros: '🛒 Outros Corredores',
+};
 
 export const PantryShoppingView: React.FC = () => {
   const {
@@ -25,22 +51,30 @@ export const PantryShoppingView: React.FC = () => {
     moveShoppingItemToPantry,
     deleteShoppingItem,
     clearBoughtItems,
+    showToast,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'shopping' | 'pantry'>('shopping');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedAisle, setSelectedAisle] = useState<string>('all');
 
   // Modals state
   const [showAddItemSheet, setShowAddItemSheet] = useState(false);
   const [itemName, setItemName] = useState('');
   const [itemCategory, setItemCategory] = useState<PantryCategory>('mercearia');
+  const [itemAisle, setItemAisle] = useState<ShoppingAisleCategory>('mercearia');
+  const [itemEstimatedPrice, setItemEstimatedPrice] = useState('');
+  const [itemExpirationDate, setItemExpirationDate] = useState('');
   const [itemQuantity, setItemQuantity] = useState('1');
   const [itemUnit, setItemUnit] = useState<any>('un');
   const [minQty, setMinQty] = useState('1');
   const [autoAdd, setAutoAdd] = useState(true);
 
+  const now = Date.now();
+  const dayMs = 86_400_000;
+
   const categories: { id: string; label: string }[] = [
-    { id: 'all', label: 'Todas' },
+    { id: 'all', label: 'Todas Categorias' },
     { id: 'mercearia', label: 'Mercearia' },
     { id: 'limpeza', label: 'Limpeza' },
     { id: 'pet', label: 'Pet' },
@@ -52,18 +86,37 @@ export const PantryShoppingView: React.FC = () => {
     (item) => selectedCategory === 'all' || item.category === selectedCategory
   );
 
-  const filteredShopping = shoppingItems.filter(
-    (item) => selectedCategory === 'all' || item.category === selectedCategory
-  );
+  const filteredShopping = shoppingItems.filter((item) => {
+    const matchCategory = selectedCategory === 'all' || item.category === selectedCategory;
+    const matchAisle = selectedAisle === 'all' || item.aisleCategory === selectedAisle;
+    return matchCategory && matchAisle;
+  });
 
   const pendingShoppingCount = shoppingItems.filter((i) => !i.isBought).length;
   const boughtCount = shoppingItems.filter((i) => i.isBought).length;
+
+  // Shopping total forecast calculations
+  const totalBasketForecast = shoppingItems.reduce((acc, item) => {
+    const unitPrice = item.estimatedPrice || 0;
+    return acc + unitPrice * (item.quantity || 1);
+  }, 0);
+
+  const boughtBasketTotal = shoppingItems
+    .filter((i) => i.isBought)
+    .reduce((acc, item) => {
+      const unitPrice = item.estimatedPrice || 0;
+      return acc + unitPrice * (item.quantity || 1);
+    }, 0);
 
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!itemName.trim()) return;
 
     if (activeTab === 'pantry') {
+      const expTimestamp = itemExpirationDate
+        ? new Date(itemExpirationDate).getTime() + 12 * 3600 * 1000
+        : undefined;
+
       addPantryItem({
         name: itemName.trim(),
         category: itemCategory,
@@ -71,8 +124,12 @@ export const PantryShoppingView: React.FC = () => {
         minQuantity: parseFloat(minQty) || 1,
         unit: itemUnit,
         autoAddToShopping: autoAdd,
+        expirationDate: expTimestamp,
       });
+      showToast(`Item "${itemName.trim()}" adicionado à despensa!`, 'success');
     } else {
+      const parsedPrice = parseFloat(itemEstimatedPrice.replace(',', '.')) || undefined;
+
       addShoppingItem({
         name: itemName.trim(),
         category: itemCategory,
@@ -80,10 +137,15 @@ export const PantryShoppingView: React.FC = () => {
         unit: itemUnit,
         isBought: false,
         addedBy: currentUser.displayName,
+        estimatedPrice: parsedPrice,
+        aisleCategory: itemAisle,
       });
+      showToast(`Item "${itemName.trim()}" incluído na lista de compras!`, 'success');
     }
 
     setItemName('');
+    setItemEstimatedPrice('');
+    setItemExpirationDate('');
     setShowAddItemSheet(false);
   };
 
@@ -111,7 +173,35 @@ export const PantryShoppingView: React.FC = () => {
         </button>
       </div>
 
-      {/* Categories Filter Bar */}
+      {/* SHOPPING TAB: Total Basket Forecast Banner */}
+      {activeTab === 'shopping' && (
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-brand-600 to-brand-800 text-white shadow-u-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-brand-200">
+              Previsão de Gastos do Supermercado
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold font-display tracking-tight text-white">
+                {formatCurrencyBRL(totalBasketForecast)}
+              </span>
+              <span className="text-xs text-brand-200">
+                ({shoppingItems.length} itens no total)
+              </span>
+            </div>
+            <p className="text-[11px] text-brand-100/90">
+              Já no carrinho: <strong className="text-white font-semibold">{formatCurrencyBRL(boughtBasketTotal)}</strong> ({boughtCount} de {shoppingItems.length})
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Badge variant="brand" size="md">
+              {pendingShoppingCount} a comprar
+            </Badge>
+          </div>
+        </div>
+      )}
+
+      {/* Categories & Corredores Filter Bar */}
       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
         {categories.map((cat) => (
           <button
@@ -161,7 +251,7 @@ export const PantryShoppingView: React.FC = () => {
                   className={`flex items-center justify-between gap-3 p-4 rounded-xl border transition-all ${
                     item.isBought
                       ? 'bg-gray-50/60 dark:bg-gray-800/20 border-gray-200/50 dark:border-gray-800/40 opacity-60'
-                      : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 shadow-u-xs hover:border-brand-300 dark:hover:border-brand-700/60'
+                      : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-u-xs hover:border-brand-300 dark:hover:border-brand-700/60'
                   }`}
                 >
                   <div className="flex items-center gap-3.5 min-w-0 flex-1">
@@ -178,21 +268,35 @@ export const PantryShoppingView: React.FC = () => {
                     </button>
 
                     <div className="min-w-0">
-                      <span
-                        className={`text-xs font-bold block truncate transition-all ${
-                          item.isBought
-                            ? 'line-through text-gray-400 dark:text-gray-500'
-                            : 'text-gray-900 dark:text-white'
-                        }`}
-                      >
-                        {item.name}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-xs font-bold block truncate transition-all ${
+                            item.isBought
+                              ? 'line-through text-gray-400 dark:text-gray-500'
+                              : 'text-gray-900 dark:text-white'
+                          }`}
+                        >
+                          {item.name}
+                        </span>
+                        {item.aisleCategory && (
+                          <span className="text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded bg-sand-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                            {item.aisleCategory}
+                          </span>
+                        )}
+                      </div>
+
                       <div className="flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
                         <span className="font-bold text-brand-600 dark:text-brand-400 font-display">
                           {item.quantity} {item.unit}
                         </span>
-                        <span>•</span>
-                        <span className="capitalize">{item.category}</span>
+                        {item.estimatedPrice && (
+                          <>
+                            <span>•</span>
+                            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                              ~ {formatCurrencyBRL(item.estimatedPrice * item.quantity)}
+                            </span>
+                          </>
+                        )}
                         {item.addedBy && (
                           <>
                             <span>•</span>
@@ -218,6 +322,7 @@ export const PantryShoppingView: React.FC = () => {
                     <button
                       onClick={() => deleteShoppingItem(item.id)}
                       className="p-1.5 rounded-lg text-gray-400 hover:text-error-600 hover:bg-error-50 dark:hover:bg-error-950/40 transition-colors"
+                      title="Excluir item"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -229,11 +334,36 @@ export const PantryShoppingView: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 2: DESPENSA (ESTOQUE) */}
+      {/* TAB 2: DESPENSA (ESTOQUE & VALIDADE) */}
       {activeTab === 'pantry' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {filteredPantry.map((item) => {
             const isLow = item.currentQuantity <= item.minQuantity;
+
+            // Expiration date math
+            let expBadge = null;
+            if (item.expirationDate) {
+              const daysToExpiry = Math.ceil((item.expirationDate - now) / dayMs);
+              if (daysToExpiry < 0) {
+                expBadge = (
+                  <span className="text-[9px] font-bold text-error-700 dark:text-error-400 bg-error-50 dark:bg-error-950/70 px-1.5 py-0.5 rounded border border-error-200 dark:border-error-800">
+                    Vencido há {Math.abs(daysToExpiry)}d
+                  </span>
+                );
+              } else if (daysToExpiry <= 3) {
+                expBadge = (
+                  <span className="text-[9px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/70 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                    Vence em {daysToExpiry}d
+                  </span>
+                );
+              } else {
+                expBadge = (
+                  <span className="text-[9px] font-medium text-gray-500 dark:text-gray-400">
+                    Val: {new Date(item.expirationDate).toLocaleDateString('pt-BR')}
+                  </span>
+                );
+              }
+            }
 
             return (
               <div
@@ -250,6 +380,7 @@ export const PantryShoppingView: React.FC = () => {
                         Baixo
                       </span>
                     )}
+                    {expBadge}
                   </div>
                   <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
                     Mínimo: {item.minQuantity} {item.unit} •{' '}
@@ -299,7 +430,7 @@ export const PantryShoppingView: React.FC = () => {
         isOpen={showAddItemSheet}
         onClose={() => setShowAddItemSheet(false)}
         title={activeTab === 'pantry' ? 'Novo Item na Despensa' : 'Novo Item na Lista de Compras'}
-        subtitle="Gerencie seu estoque doméstico de forma inteligente"
+        subtitle="Gerencie seu estoque e compras de forma inteligente"
       >
         <form onSubmit={handleAddItem} className="space-y-4">
           <div>
@@ -308,7 +439,7 @@ export const PantryShoppingView: React.FC = () => {
             </label>
             <input
               type="text"
-              placeholder="Ex: Café em pó ou Papel Toalha"
+              placeholder="Ex: Café em pó, Papel Toalha, Azeite"
               value={itemName}
               onChange={(e) => setItemName(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
@@ -350,6 +481,56 @@ export const PantryShoppingView: React.FC = () => {
               </select>
             </div>
           </div>
+
+          {/* Conditional: Shopping extra fields (Estimated price & Aisle) */}
+          {activeTab === 'shopping' && (
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">
+                  Preço Estimado Unitário (R$)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: 14,90"
+                  value={itemEstimatedPrice}
+                  onChange={(e) => setItemEstimatedPrice(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-900 dark:text-white focus:outline-none font-display font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">
+                  Corredor / Setor
+                </label>
+                <select
+                  value={itemAisle}
+                  onChange={(e) => setItemAisle(e.target.value as any)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-900 dark:text-white focus:outline-none"
+                >
+                  {Object.entries(AISLE_LABELS).map(([k, label]) => (
+                    <option key={k} value={k}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Conditional: Pantry extra fields (Expiration Date) */}
+          {activeTab === 'pantry' && (
+            <div>
+              <label className="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">
+                Data de Validade (opcional)
+              </label>
+              <input
+                type="date"
+                value={itemExpirationDate}
+                onChange={(e) => setItemExpirationDate(e.target.value)}
+                className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-900 dark:text-white focus:outline-none"
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-2.5">
             <div>
