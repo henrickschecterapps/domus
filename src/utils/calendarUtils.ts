@@ -137,20 +137,38 @@ export function getUnifiedHouseEvents(
     }
   });
 
-  // 3. Pet Full Sand Change
-  const nextSandChange = pet.litterBox.lastFullChangeAt + pet.litterBox.fullChangeIntervalDays * dayMs;
-  aggregated.push({
-    id: 'auto_pet_sand_change',
-    title: 'Troca Total da Areia da Bayonetta',
-    description: 'Ciclo completo de higienização da caixa de areia sanitária.',
-    date: Math.max(now, nextSandChange),
-    endDate: Math.max(now, nextSandChange) + 3600 * 1000,
-    category: 'pet',
-    createdByUserId: 'system',
-    createdByName: 'Bayonetta Care',
-    source: 'pet',
-    sourceId: pet.id,
-  });
+  // 3. Pet Full Sand Change (for cats) or Bath (for dogs)
+  if (pet.litterBox) {
+    const nextSandChange = pet.litterBox.lastFullChangeAt + pet.litterBox.fullChangeIntervalDays * dayMs;
+    aggregated.push({
+      id: `auto_pet_sand_change_${pet.id}`,
+      title: `Troca de Areia: ${pet.name}`,
+      description: `Ciclo de higienização completa da caixa de areia sanitária de ${pet.name}.`,
+      date: Math.max(now, nextSandChange),
+      endDate: Math.max(now, nextSandChange) + 3600 * 1000,
+      category: 'pet',
+      createdByUserId: 'system',
+      createdByName: `${pet.name} Care`,
+      source: 'pet',
+      sourceId: pet.id,
+    });
+  }
+
+  if (pet.bath) {
+    const nextBath = pet.bath.lastBathAt + pet.bath.intervalDays * dayMs;
+    aggregated.push({
+      id: `auto_pet_bath_${pet.id}`,
+      title: `Banho & Tosa: ${pet.name}`,
+      description: `Ciclo de higiene e banho programado para ${pet.name}.`,
+      date: Math.max(now, nextBath),
+      endDate: Math.max(now, nextBath) + 3600 * 1000,
+      category: 'pet',
+      createdByUserId: 'system',
+      createdByName: `${pet.name} Care`,
+      source: 'pet',
+      sourceId: pet.id,
+    });
+  }
 
   // 4. Sort all by date ascending
   return aggregated.sort((a, b) => a.date - b.date);

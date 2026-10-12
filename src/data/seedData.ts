@@ -407,53 +407,147 @@ export function createInitialChores(): Chore[] {
   ];
 }
 
-export function createInitialPet(): Pet {
+export function createInitialPets(): Pet[] {
   const now = Date.now();
-  return {
-    id: 'pet_bayonetta',
-    name: 'Bayonetta',
-    species: 'cat',
-    photoUrl: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=400&auto=format&fit=crop&q=80',
-    breed: 'SRD Pelagem Longa',
-    birthDate: '2023-04-10',
-    litterBox: {
-      lastScoopedAt: now - 14 * 3600 * 1000, // 14 hours ago (clean today)
-      lastFullChangeAt: now - 6 * 86_400_000, // 6 days ago (coming up to 7-10 day change)
-      scoopIntervalHours: 24,
-      fullChangeIntervalDays: 8,
+  const day = 86_400_000;
+
+  return [
+    {
+      id: 'pet_bayonetta',
+      name: 'Bayonetta',
+      species: 'cat',
+      photoUrl: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=400&auto=format&fit=crop&q=80',
+      breed: 'SRD Pelagem Longa',
+      birthDate: '2023-04-10',
+      weightKg: 4.2,
+      litterBox: {
+        lastScoopedAt: now - 14 * 3600 * 1000, // 14 hours ago
+        lastFullChangeAt: now - 6 * day, // 6 days ago
+        scoopIntervalHours: 24,
+        fullChangeIntervalDays: 8,
+      },
+      feeding: {
+        foodBrand: 'PremieR Gatos Castrados',
+        packageWeightGrams: 7500,
+        currentStockGrams: 450, // Low stock!
+        dailyConsumptionGrams: 65,
+        sachetStockCount: 2, // Low sachet count!
+        minStockAlertThreshold: 500,
+      },
+      medicalRecords: [
+        {
+          id: 'med_b1',
+          type: 'vaccine',
+          name: 'Vacina V5 (Quíntupla Felina)',
+          administeredAt: now - 180 * day,
+          nextDueDate: now + 185 * day,
+        },
+        {
+          id: 'med_b2',
+          type: 'deworming',
+          name: 'Drontal Gatos Spot-On',
+          administeredAt: now - 60 * day,
+          nextDueDate: now + 30 * day,
+        },
+        {
+          id: 'med_b3',
+          type: 'flea_treatment',
+          name: 'Revolution Plus Antipulgas',
+          administeredAt: now - 20 * day,
+          nextDueDate: now + 10 * day,
+        },
+      ],
+      careLogs: [
+        {
+          id: 'log_b1',
+          petId: 'pet_bayonetta',
+          actionType: 'scoop',
+          title: 'Recolhimento da caixa de areia',
+          performedByUserId: 'user_2',
+          performedByName: 'Mariana',
+          performedAt: now - 14 * 3600 * 1000,
+          xpEarned: 10,
+        },
+        {
+          id: 'log_b2',
+          petId: 'pet_bayonetta',
+          actionType: 'sachet',
+          title: 'Ofereceu sachê úmido Whiskas',
+          performedByUserId: 'user_1',
+          performedByName: 'Henrique',
+          performedAt: now - 28 * 3600 * 1000,
+          xpEarned: 5,
+        },
+      ],
     },
-    feeding: {
-      foodBrand: 'PremieR Gatos Castrados',
-      packageWeightGrams: 7500,
-      currentStockGrams: 450, // Low stock! Daily consumption is 65g => ~6.9 days
-      dailyConsumptionGrams: 65,
-      sachetStockCount: 2, // Low sachet count!
-      minStockAlertThreshold: 500,
+    {
+      id: 'pet_apollo',
+      name: 'Apollo',
+      species: 'dog',
+      photoUrl: 'https://images.unsplash.com/photo-1552053831-71594a27632d?w=400&auto=format&fit=crop&q=80',
+      breed: 'Golden Retriever',
+      birthDate: '2022-11-15',
+      weightKg: 31.5,
+      walks: {
+        lastWalkAt: now - 4 * 3600 * 1000, // 4 hours ago
+        walksToday: 1,
+        targetWalksPerDay: 2,
+      },
+      bath: {
+        lastBathAt: now - 11 * day,
+        intervalDays: 15,
+      },
+      feeding: {
+        foodBrand: 'Golden Fórmula Cães Adultos',
+        packageWeightGrams: 15000,
+        currentStockGrams: 3200,
+        dailyConsumptionGrams: 360,
+        minStockAlertThreshold: 1500,
+      },
+      medicalRecords: [
+        {
+          id: 'med_a1',
+          type: 'vaccine',
+          name: 'Vacina V10 Polivalente',
+          administeredAt: now - 120 * day,
+          nextDueDate: now + 245 * day,
+        },
+        {
+          id: 'med_a2',
+          type: 'flea_treatment',
+          name: 'Simparic Antipulgas & Carrapatos',
+          administeredAt: now - 25 * day,
+          nextDueDate: now + 5 * day,
+        },
+      ],
+      careLogs: [
+        {
+          id: 'log_a1',
+          petId: 'pet_apollo',
+          actionType: 'walk',
+          title: 'Passeio matinal no parque',
+          performedByUserId: 'user_1',
+          performedByName: 'Henrique',
+          performedAt: now - 4 * 3600 * 1000,
+          xpEarned: 25,
+        },
+        {
+          id: 'log_a2',
+          petId: 'pet_apollo',
+          actionType: 'feed',
+          title: 'Alimentação diária servida',
+          performedByUserId: 'user_2',
+          performedByName: 'Mariana',
+          performedAt: now - 6 * 3600 * 1000,
+          xpEarned: 10,
+        },
+      ],
     },
-    medicalRecords: [
-      {
-        id: 'med_1',
-        type: 'vaccine',
-        name: 'Vacina V5 (Quíntupla Felina)',
-        administeredAt: now - 180 * 86_400_000,
-        nextDueDate: now + 185 * 86_400_000,
-      },
-      {
-        id: 'med_2',
-        type: 'deworming',
-        name: 'Drontal Gatos Spot-On',
-        administeredAt: now - 60 * 86_400_000,
-        nextDueDate: now + 30 * 86_400_000,
-      },
-      {
-        id: 'med_3',
-        type: 'flea_treatment',
-        name: 'Revolution Plus Antipulgas',
-        administeredAt: now - 20 * 86_400_000,
-        nextDueDate: now + 10 * 86_400_000,
-      },
-    ],
-  };
+  ];
+}
+
+export function createInitialPet(): Pet {
+  return createInitialPets()[0];
 }
 
 export function createInitialPantry(): PantryItem[] {

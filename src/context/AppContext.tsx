@@ -7,6 +7,7 @@ import {
   Chore,
   ChoreLog,
   Pet,
+  PetCareLog,
   PantryItem,
   ShoppingItem,
   Expense,
@@ -18,6 +19,7 @@ import {
   createInitialRooms,
   createInitialChores,
   createInitialPet,
+  createInitialPets,
   createInitialPantry,
   createInitialShoppingList,
   createInitialExpenses,
@@ -45,7 +47,13 @@ interface AppContextType {
   rooms: Room[];
   chores: Chore[];
   choreLogs: ChoreLog[];
+  pets: Pet[];
   pet: Pet;
+  selectedPetId: string;
+  setSelectedPetId: (id: string) => void;
+  addPet: (pet: Omit<Pet, 'id'>) => void;
+  updatePet: (id: string, updates: Partial<Pet>) => void;
+  deletePet: (id: string) => void;
   pantryItems: PantryItem[];
   shoppingItems: ShoppingItem[];
   expenses: Expense[];
@@ -58,11 +66,14 @@ interface AppContextType {
   addChore: (roomId: string, title: string, frequencyDays: number, xpReward: number) => void;
   resetChoreTimer: (choreId: string, hoursAgo?: number) => void;
   // Pet actions
-  scoopLitterBox: () => void;
-  fullChangeLitterBox: () => void;
-  updatePetStock: (dryFoodDeltaGrams: number, sachetDelta: number) => void;
-  addPetFoodToShopping: (itemType: 'dry' | 'sachet') => void;
-  addPetMedicalRecord: (record: Omit<MedicalRecord, 'id'>) => void;
+  scoopLitterBox: (petId?: string) => void;
+  fullChangeLitterBox: (petId?: string) => void;
+  walkDog: (petId?: string) => void;
+  bathDog: (petId?: string) => void;
+  updatePetStock: (dryFoodDeltaGrams: number, sachetDelta: number, petId?: string) => void;
+  addPetFoodToShopping: (itemType: 'dry' | 'sachet' | 'litter', petId?: string) => void;
+  addPetMedicalRecord: (record: Omit<MedicalRecord, 'id'>, petId?: string, expenseAmount?: number) => void;
+  logPetCareAction: (petId: string, actionType: PetCareLog['actionType'], title: string, xpReward: number) => void;
   // Pantry actions
   addPantryItem: (item: Omit<PantryItem, 'id'>) => void;
   updatePantryQuantity: (id: string, newQuantity: number) => void;
@@ -163,7 +174,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [rooms, setRooms] = useState<Room[]>(() => loadFromStorage('rooms', createInitialRooms()));
   const [chores, setChores] = useState<Chore[]>(() => loadFromStorage('chores', createInitialChores()));
   const [choreLogs, setChoreLogs] = useState<ChoreLog[]>(() => loadFromStorage('choreLogs', []));
-  const [pet, setPet] = useState<Pet>(() => loadFromStorage('pet', createInitialPet()));
+  const [pets, setPets] = useState<Pet[]>(() => {
+    const saved = loadFromStorage<Pet[]>('pets', []);
+    if (saved && saved.length > 0) return saved;
+    const legacy = loadFromStorage<Pet | null>('pet', null);
+    if (legacy) {
+      const defaults = createInitialPets();
+      const rest = defaults.filter((d) => d.id !== legacy.id);
+      return [legacy, ...rest];
+    }
+    return createInitialPets();
+  });
+  const [selectedPetId, setSelectedPetId] = useState<string>(() => {
+    return loadFromStorage('selectedPetId', 'pet_bayonetta');
+  });
   const [pantryItems, setPantryItems] = useState<PantryItem[]>(() => loadFromStorage('pantry', createInitialPantry()));
   const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>(() => loadFromStorage('shopping', createInitialShoppingList()));
   const [expenses, setExpenses] = useState<Expense[]>(() => loadFromStorage('expenses', createInitialExpenses()));
@@ -201,6 +225,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const currentUser = members.find((m) => m.userId === currentUserId) || members[0];
+  const pet = pets.find((p) => p.id === selectedPetId) || pets[0] || createInitialPet();
 
   const showToast = useCallback((message: string, type: 'success' | 'warning' | 'info' | 'error' = 'info') => {
     const id = Date.now().toString() + Math.random().toString(36).substring(2, 5);
@@ -221,7 +246,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { saveToStorage('rooms', rooms); }, [rooms]);
   useEffect(() => { saveToStorage('chores', chores); }, [chores]);
   useEffect(() => { saveToStorage('choreLogs', choreLogs); }, [choreLogs]);
-  useEffect(() => { saveToStorage('pet', pet); }, [pet]);
+  useEffect(() => { saveToStorage('pets', pets); }, [pets]);
+  useEffect(() => { saveToStorage('selectedPetId', selectedPetId); }, [selectedPetId]);
   useEffect(() => { saveToStorage('pantry', pantryItems); }, [pantryItems]);
   useEffect(() => { saveToStorage('shopping', shoppingItems); }, [shoppingItems]);
   useEffect(() => { saveToStorage('expenses', expenses); }, [expenses]);
@@ -377,76 +403,224 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Nova tarefa adicionada!', 'success');
   };
 
-  // Pet Actions
-  const scoopLitterBox = () => {
-    const now = Date.now();
-    setPet((prev) => ({
-      ...prev,
-      litterBox: {
-        ...prev.litterBox,
-        lastScoopedAt: now,
-      },
-    }));
+  // Pet Actions & Multi-Pet Management
+  const addPet = (petData: Omit<Pet, 'id'>) => {
+    const newId = 'pet_' + Date.now();
+    const newPet: Pet = {
+      ...petData,
+      id: newId,
+      careLogs: [],
+      medicalRecords: petData.medicalRecords || [],
+    };
+    setPets((prev) => [...prev, newPet]);
+    setSelectedPetId(newId);
+    showToast(`Pet "${newPet.name}" cadastrado na família!`, 'success');
+  };
 
-    // Award 10 XP
-    setMembers((prev) =>
-      prev.map((m) =>
-        m.userId === currentUser.userId
-          ? { ...m, weeklyXP: m.weeklyXP + 10, totalXP: m.totalXP + 10 }
-          : m
-      )
+  const updatePet = (id: string, updates: Partial<Pet>) => {
+    setPets((prev) =>
+      prev.map((p) => {
+        if (p.id === id) {
+          return { ...p, ...updates };
+        }
+        return p;
+      })
     );
-    fireCelebrationConfetti();
-    showToast('Caixa de areia limpa! +10 XP', 'success');
+    showToast('Dados do pet atualizados!', 'info');
   };
 
-  const fullChangeLitterBox = () => {
+  const deletePet = (id: string) => {
+    if (pets.length <= 1) {
+      showToast('A casa deve manter ao menos um pet cadastrado.', 'warning');
+      return;
+    }
+    const petToDelete = pets.find((p) => p.id === id);
+    setPets((prev) => prev.filter((p) => p.id !== id));
+    if (selectedPetId === id) {
+      const remaining = pets.find((p) => p.id !== id);
+      if (remaining) setSelectedPetId(remaining.id);
+    }
+    showToast(`Pet "${petToDelete?.name || ''}" removido.`, 'info');
+  };
+
+  const logPetCareAction = (petId: string, actionType: PetCareLog['actionType'], title: string, xpReward: number) => {
     const now = Date.now();
-    setPet((prev) => ({
-      ...prev,
-      litterBox: {
-        ...prev.litterBox,
-        lastScoopedAt: now,
-        lastFullChangeAt: now,
-      },
-    }));
+    const log: PetCareLog = {
+      id: 'log_' + Date.now(),
+      petId,
+      actionType,
+      title,
+      performedByUserId: currentUser.userId,
+      performedByName: currentUser.displayName,
+      performedAt: now,
+      xpEarned: xpReward,
+    };
 
-    // Award 30 XP
-    setMembers((prev) =>
-      prev.map((m) =>
-        m.userId === currentUser.userId
-          ? { ...m, weeklyXP: m.weeklyXP + 30, totalXP: m.totalXP + 30 }
-          : m
-      )
+    setPets((prev) =>
+      prev.map((p) => {
+        if (p.id === petId) {
+          return {
+            ...p,
+            careLogs: [log, ...(p.careLogs || [])].slice(0, 30),
+          };
+        }
+        return p;
+      })
     );
-    fireCelebrationConfetti();
-    showToast('Troca completa de areia realizada! +30 XP', 'success');
+
+    if (xpReward > 0) {
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.userId === currentUser.userId
+            ? { ...m, weeklyXP: m.weeklyXP + xpReward, totalXP: m.totalXP + xpReward }
+            : m
+        )
+      );
+      fireCelebrationConfetti();
+    }
   };
 
-  const updatePetStock = (dryFoodDeltaGrams: number, sachetDelta: number) => {
-    setPet((prev) => {
-      const newStock = Math.max(0, prev.feeding.currentStockGrams + dryFoodDeltaGrams);
-      const newSachets = Math.max(0, prev.feeding.sachetStockCount + sachetDelta);
-      return {
-        ...prev,
-        feeding: {
-          ...prev.feeding,
-          currentStockGrams: newStock,
-          sachetStockCount: newSachets,
-        },
-      };
-    });
-    showToast('Estoque da Bayonetta atualizado', 'info');
+  const scoopLitterBox = (petId?: string) => {
+    const targetId = petId || selectedPetId;
+    const targetPet = pets.find((p) => p.id === targetId) || pet;
+    const now = Date.now();
+
+    setPets((prev) =>
+      prev.map((p) => {
+        if (p.id === targetId && p.litterBox) {
+          return {
+            ...p,
+            litterBox: {
+              ...p.litterBox,
+              lastScoopedAt: now,
+            },
+          };
+        }
+        return p;
+      })
+    );
+
+    logPetCareAction(targetId, 'scoop', `Recolhimento da caixa de areia (${targetPet.name})`, 10);
+    showToast(`Caixa de areia de ${targetPet.name} limpa! +10 XP`, 'success');
   };
 
-  const addPetFoodToShopping = (itemType: 'dry' | 'sachet') => {
+  const fullChangeLitterBox = (petId?: string) => {
+    const targetId = petId || selectedPetId;
+    const targetPet = pets.find((p) => p.id === targetId) || pet;
+    const now = Date.now();
+
+    setPets((prev) =>
+      prev.map((p) => {
+        if (p.id === targetId && p.litterBox) {
+          return {
+            ...p,
+            litterBox: {
+              ...p.litterBox,
+              lastScoopedAt: now,
+              lastFullChangeAt: now,
+            },
+          };
+        }
+        return p;
+      })
+    );
+
+    logPetCareAction(targetId, 'litter_change', `Troca total de areia higiênica (${targetPet.name})`, 30);
+    showToast(`Troca total de areia de ${targetPet.name} realizada! +30 XP`, 'success');
+  };
+
+  const walkDog = (petId?: string) => {
+    const targetId = petId || selectedPetId;
+    const targetPet = pets.find((p) => p.id === targetId) || pet;
+    const now = Date.now();
+
+    setPets((prev) =>
+      prev.map((p) => {
+        if (p.id === targetId && p.walks) {
+          return {
+            ...p,
+            walks: {
+              ...p.walks,
+              lastWalkAt: now,
+              walksToday: (p.walks.walksToday || 0) + 1,
+            },
+          };
+        }
+        return p;
+      })
+    );
+
+    logPetCareAction(targetId, 'walk', `Passeio diário com ${targetPet.name}`, 25);
+    showToast(`Passeio com ${targetPet.name} concluído! +25 XP`, 'success');
+  };
+
+  const bathDog = (petId?: string) => {
+    const targetId = petId || selectedPetId;
+    const targetPet = pets.find((p) => p.id === targetId) || pet;
+    const now = Date.now();
+
+    setPets((prev) =>
+      prev.map((p) => {
+        if (p.id === targetId && p.bath) {
+          return {
+            ...p,
+            bath: {
+              ...p.bath,
+              lastBathAt: now,
+            },
+          };
+        }
+        return p;
+      })
+    );
+
+    logPetCareAction(targetId, 'bath', `Banho e higiene de ${targetPet.name}`, 35);
+    showToast(`Banho de ${targetPet.name} registrado! +35 XP`, 'success');
+  };
+
+  const updatePetStock = (dryFoodDeltaGrams: number, sachetDelta: number, petId?: string) => {
+    const targetId = petId || selectedPetId;
+    const targetPet = pets.find((p) => p.id === targetId) || pet;
+
+    setPets((prev) =>
+      prev.map((p) => {
+        if (p.id === targetId) {
+          const newStock = Math.max(0, p.feeding.currentStockGrams + dryFoodDeltaGrams);
+          const newSachets = Math.max(0, (p.feeding.sachetStockCount || 0) + sachetDelta);
+          return {
+            ...p,
+            feeding: {
+              ...p.feeding,
+              currentStockGrams: newStock,
+              sachetStockCount: newSachets,
+            },
+          };
+        }
+        return p;
+      })
+    );
+
+    if (dryFoodDeltaGrams < 0) {
+      logPetCareAction(targetId, 'feed', `Alimentou ${targetPet.name} (-${Math.abs(dryFoodDeltaGrams)}g)`, 10);
+    } else if (sachetDelta < 0) {
+      logPetCareAction(targetId, 'sachet', `Serviu sachê para ${targetPet.name}`, 5);
+    }
+
+    showToast(`Estoque de ${targetPet.name} atualizado`, 'info');
+  };
+
+  const addPetFoodToShopping = (itemType: 'dry' | 'sachet' | 'litter', petId?: string) => {
+    const targetId = petId || selectedPetId;
+    const targetPet = pets.find((p) => p.id === targetId) || pet;
+
     const itemName =
       itemType === 'dry'
-        ? `Ração ${pet.feeding.foodBrand}`
-        : 'Sachês de Gato (Caixa/Pack)';
+        ? `Ração ${targetPet.feeding.foodBrand} (${targetPet.name})`
+        : itemType === 'sachet'
+        ? `Sachês úmidos (${targetPet.name})`
+        : `Areia sanitária para ${targetPet.name}`;
 
-    // Check if item already exists
-    const existing = shoppingItems.find((s) => !s.isBought && s.name.toLowerCase().includes(itemType === 'dry' ? 'ração' : 'sachê'));
+    const existing = shoppingItems.find((s) => !s.isBought && s.name.toLowerCase() === itemName.toLowerCase());
     if (existing) {
       showToast('Item já está presente na lista de compras!', 'info');
       return;
@@ -467,15 +641,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`${itemName} adicionado à Lista de Compras!`, 'success');
   };
 
-  const addPetMedicalRecord = (record: Omit<MedicalRecord, 'id'>) => {
+  const addPetMedicalRecord = (record: Omit<MedicalRecord, 'id'>, petId?: string, expenseAmount?: number) => {
+    const targetId = petId || selectedPetId;
+    const targetPet = pets.find((p) => p.id === targetId) || pet;
     const newRecord: MedicalRecord = {
       ...record,
       id: 'med_' + Date.now(),
     };
-    setPet((prev) => ({
-      ...prev,
-      medicalRecords: [newRecord, ...prev.medicalRecords],
-    }));
+
+    setPets((prev) =>
+      prev.map((p) => {
+        if (p.id === targetId) {
+          return {
+            ...p,
+            medicalRecords: [newRecord, ...p.medicalRecords],
+          };
+        }
+        return p;
+      })
+    );
+
+    logPetCareAction(targetId, 'med', `${record.name} aplicado em ${targetPet.name}`, 20);
+
+    // Integre com Finanças caso haja valor informado
+    if (expenseAmount && expenseAmount > 0) {
+      const newExpense: Expense = {
+        id: 'exp_pet_' + Date.now(),
+        description: `Veterinário: ${record.name} (${targetPet.name})`,
+        amount: expenseAmount,
+        paidByUserId: currentUser.userId,
+        splitAmongUserIds: members.map((m) => m.userId),
+        date: Date.now(),
+        category: 'pet',
+        isSettled: false,
+      };
+      setExpenses((prev) => [newExpense, ...prev]);
+      showToast(`Despesa de R$ ${expenseAmount.toFixed(2)} dividida entre os moradores!`, 'success');
+    }
+
     showToast('Registro médico veterinário salvo!', 'success');
   };
 
@@ -799,7 +1002,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       { id: 'chore_' + Date.now() + '_3', roomId: initialRoomsList[3].id, title: 'Higienizar banheiro e box', frequencyDays: 4, lastCompletedAt: Date.now(), lastCompletedBy: { userId: adminUser.userId, displayName: adminUser.displayName }, assignedTo: null, xpReward: 35, urgencyScore: 0, statusLevel: 'clean' },
     ]);
     setChoreLogs([]);
-    setPet(createInitialPet());
+    const freshPets = createInitialPets();
+    setPets(freshPets);
+    setSelectedPetId(freshPets[0].id);
     setPantryItems([]);
     setShoppingItems([]);
     setExpenses([]);
@@ -837,6 +1042,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       rooms,
       chores,
       choreLogs,
+      pets,
+      selectedPetId,
       pet,
       pantryItems,
       shoppingItems,
@@ -860,7 +1067,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setRooms(data.rooms);
       setChores(data.chores || []);
       setChoreLogs(data.choreLogs || []);
-      if (data.pet) setPet(data.pet);
+      if (Array.isArray(data.pets) && data.pets.length > 0) {
+        setPets(data.pets);
+        setSelectedPetId(data.selectedPetId || data.pets[0].id);
+      } else if (data.pet) {
+        setPets([data.pet]);
+        setSelectedPetId(data.pet.id);
+      }
       if (data.pantryItems) setPantryItems(data.pantryItems);
       if (data.shoppingItems) setShoppingItems(data.shoppingItems);
       if (data.expenses) setExpenses(data.expenses);
@@ -881,7 +1094,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setRooms(createInitialRooms());
     setChores(createInitialChores());
     setChoreLogs([]);
-    setPet(createInitialPet());
+    const initialPetsList = createInitialPets();
+    setPets(initialPetsList);
+    setSelectedPetId(initialPetsList[0].id);
     setPantryItems(createInitialPantry());
     setShoppingItems(createInitialShoppingList());
     setExpenses(createInitialExpenses());
@@ -898,7 +1113,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         rooms,
         chores,
         choreLogs,
+        pets,
         pet,
+        selectedPetId,
+        setSelectedPetId,
+        addPet,
+        updatePet,
+        deletePet,
         pantryItems,
         shoppingItems,
         expenses,
@@ -911,9 +1132,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resetChoreTimer,
         scoopLitterBox,
         fullChangeLitterBox,
+        walkDog,
+        bathDog,
         updatePetStock,
         addPetFoodToShopping,
         addPetMedicalRecord,
+        logPetCareAction,
         addPantryItem,
         updatePantryQuantity,
         deletePantryItem,

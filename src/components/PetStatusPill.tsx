@@ -8,19 +8,29 @@ interface PetStatusPillProps {
 }
 
 export const PetStatusPill: React.FC<PetStatusPillProps> = ({ onNavigateToPet }) => {
-  const { pet, scoopLitterBox } = useApp();
+  const { pets, pet, scoopLitterBox, walkDog } = useApp();
   const now = Date.now();
 
-  const hoursSinceScoop = Math.floor((now - pet.litterBox.lastScoopedAt) / (3600 * 1000));
-  const isScoopUrgent = hoursSinceScoop >= 24;
+  const isCat = pet.species === 'cat';
+  const isDog = pet.species === 'dog';
 
-  const daysSinceFullChange = Math.floor((now - pet.litterBox.lastFullChangeAt) / (86_400_000));
-  const isChangeUrgent = daysSinceFullChange >= pet.litterBox.fullChangeIntervalDays;
+  // Cat litter metrics
+  const hoursSinceScoop = pet.litterBox
+    ? Math.floor((now - pet.litterBox.lastScoopedAt) / (3600 * 1000))
+    : 0;
+  const isScoopUrgent = isCat && pet.litterBox ? hoursSinceScoop >= 24 : false;
+
+  // Dog walk metrics
+  const walksToday = pet.walks?.walksToday || 0;
+  const targetWalks = pet.walks?.targetWalksPerDay || 2;
+  const isWalkPending = isDog && walksToday < targetWalks;
+
+  const isUrgent = isScoopUrgent || (isDog && walksToday === 0);
 
   return (
     <div
       className={`rounded-2xl border p-4 transition-all shadow-u-xs ${
-        isScoopUrgent || isChangeUrgent
+        isUrgent
           ? 'bg-warning-25 dark:bg-warning-950/20 border-warning-200 dark:border-warning-900/40 text-gray-900 dark:text-white'
           : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white'
       }`}
@@ -38,7 +48,7 @@ export const PetStatusPill: React.FC<PetStatusPillProps> = ({ onNavigateToPet })
             />
             <span
               className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-gray-900 ${
-                isScoopUrgent ? 'bg-error-500' : 'bg-success-500'
+                isUrgent ? 'bg-error-500' : 'bg-success-500'
               }`}
             />
           </div>
@@ -46,34 +56,61 @@ export const PetStatusPill: React.FC<PetStatusPillProps> = ({ onNavigateToPet })
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-gray-900 dark:text-white">{pet.name}</span>
-              <span className="text-[11px] text-gray-500 dark:text-gray-400">({pet.breed})</span>
-              <Badge variant={isScoopUrgent ? 'warning' : 'success'} size="sm" dot>
-                {isScoopUrgent ? 'Atenção' : 'Higienizado'}
+              <span className="text-[11px] text-gray-500 dark:text-gray-400">({pet.breed || (isCat ? 'Gato' : 'Cão')})</span>
+              <Badge variant={isUrgent ? 'warning' : 'success'} size="sm" dot>
+                {isUrgent ? 'Atenção' : 'Em Dia'}
               </Badge>
             </div>
             <p className="text-xs font-medium truncate mt-1">
-              {isScoopUrgent ? (
-                <span className="text-warning-700 dark:text-warning-300 flex items-center gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 text-warning-500" />
-                  Areia pendente (há {hoursSinceScoop}h)
-                </span>
+              {isCat ? (
+                isScoopUrgent ? (
+                  <span className="text-warning-700 dark:text-warning-300 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 text-warning-500" />
+                    Areia pendente (há {hoursSinceScoop}h)
+                  </span>
+                ) : (
+                  <span className="text-success-700 dark:text-success-300 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 text-success-500" />
+                    Areia limpa hoje
+                  </span>
+                )
+              ) : isDog ? (
+                isWalkPending ? (
+                  <span className="text-warning-700 dark:text-warning-300 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 text-warning-500" />
+                    {walksToday}/{targetWalks} passeios hoje
+                  </span>
+                ) : (
+                  <span className="text-success-700 dark:text-success-300 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 text-success-500" />
+                    Passeios concluídos hoje
+                  </span>
+                )
               ) : (
                 <span className="text-success-700 dark:text-success-300 flex items-center gap-1.5">
                   <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 text-success-500" />
-                  Areia limpa hoje
+                  Cuidados em dia
                 </span>
               )}
             </p>
           </div>
         </div>
 
-        {isScoopUrgent ? (
+        {isCat && isScoopUrgent ? (
           <button
-            onClick={scoopLitterBox}
+            onClick={() => scoopLitterBox(pet.id)}
             className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-warning-600 hover:bg-warning-700 text-white font-semibold text-xs shadow-u-xs transition-all active:scale-95 flex items-center gap-1.5"
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span>Recolher</span>
+          </button>
+        ) : isDog && isWalkPending ? (
+          <button
+            onClick={() => walkDog(pet.id)}
+            className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs shadow-u-xs transition-all active:scale-95 flex items-center gap-1.5"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Passear</span>
           </button>
         ) : (
           <button

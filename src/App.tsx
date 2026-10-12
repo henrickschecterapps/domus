@@ -14,7 +14,7 @@ import { calculateChoreUrgency } from './utils/cleaningMath';
 
 const MainLayout: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
-  const { chores, pet } = useApp();
+  const { chores, pets } = useApp();
 
   const now = Date.now();
   const urgentChoreCount = chores.filter((c) => {
@@ -22,8 +22,15 @@ const MainLayout: React.FC = () => {
     return urgencyRatio > 1.0;
   }).length;
 
-  const hoursSinceScoop = Math.floor((now - pet.litterBox.lastScoopedAt) / (3600 * 1000));
-  const urgentPetAlert = hoursSinceScoop >= 24;
+  const urgentPetAlert = pets.some((p) => {
+    if (p.species === 'cat' && p.litterBox) {
+      return Math.floor((now - p.litterBox.lastScoopedAt) / (3600 * 1000)) >= 24;
+    }
+    if (p.species === 'dog' && p.walks) {
+      return p.walks.walksToday === 0;
+    }
+    return false;
+  });
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col md:flex-row font-sans transition-colors duration-200">

@@ -69,28 +69,50 @@ export interface MedicalRecord {
   nextDueDate: number;
 }
 
+export interface PetCareLog {
+  id: string;
+  petId: string;
+  actionType: 'scoop' | 'litter_change' | 'walk' | 'feed' | 'sachet' | 'med' | 'bath';
+  title: string;
+  performedByUserId: string;
+  performedByName: string;
+  performedAt: number;
+  xpEarned: number;
+}
+
 export interface Pet {
   id: string;
-  name: string; // e.g. "Bayonetta"
+  name: string; // e.g. "Bayonetta", "Apollo"
   species: 'cat' | 'dog' | 'other';
   photoUrl?: string;
   breed?: string;
   birthDate?: string;
-  litterBox: {
+  weightKg?: number;
+  litterBox?: {
     lastScoopedAt: number;
     lastFullChangeAt: number;
     scoopIntervalHours: number; // default 24h
     fullChangeIntervalDays: number; // default 7-10 days
+  };
+  walks?: {
+    lastWalkAt: number;
+    walksToday: number;
+    targetWalksPerDay: number; // default 2 or 3
+  };
+  bath?: {
+    lastBathAt: number;
+    intervalDays: number; // default 15-30 days
   };
   feeding: {
     foodBrand: string;
     packageWeightGrams: number;
     currentStockGrams: number;
     dailyConsumptionGrams: number;
-    sachetStockCount: number;
+    sachetStockCount?: number;
     minStockAlertThreshold: number;
   };
   medicalRecords: MedicalRecord[];
+  careLogs?: PetCareLog[];
 }
 
 export type PantryCategory = 'mercearia' | 'limpeza' | 'pet' | 'hortifruti' | 'refrigerados';
