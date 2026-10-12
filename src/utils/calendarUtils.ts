@@ -87,8 +87,8 @@ export function getUnifiedHouseEvents(
   manualEvents: HouseEvent[],
   chores: Chore[],
   rooms: Room[],
-  pet: Pet,
-  expenses: Expense[],
+  petsInput: Pet | Pet[],
+  expenses: Expense[] = [],
   now: number = Date.now()
 ): HouseEvent[] {
   const roomMap = new Map(rooms.map((r) => [r.id, r.name]));
@@ -119,56 +119,87 @@ export function getUnifiedHouseEvents(
     }
   });
 
-  // 2. Pet Medical Records (vaccines, deworming)
-  pet.medicalRecords.forEach((med) => {
-    if (med.nextDueDate) {
+  // 2. Pet Medical Records, Sand Change, Bath for all pets
+  const petList: Pet[] = Array.isArray(petsInput) ? petsInput : (petsInput ? [petsInput] : []);
+
+  petList.forEach((pet) => {
+    // 2a. Pet Medical Records (vaccines, deworming)
+    pet.medicalRecords?.forEach((med) => {
+      if (med.nextDueDate) {
+        aggregated.push({
+          id: `auto_pet_med_${pet.id}_${med.id}`,
+          title: `${pet.name}: ${med.name}`,
+          description: `Dose veterinária programada para ${pet.name}.`,
+          date: med.nextDueDate,
+          endDate: med.nextDueDate + 3600 * 1000,
+          category: 'pet',
+          createdByUserId: 'system',
+          createdByName: `${pet.name} Care`,
+          source: 'pet',
+          sourceId: med.id,
+        });
+      }
+    });
+
+    // 2b. Pet Full Sand Change (for cats)
+    if (pet.litterBox) {
+      const nextSandChange = pet.litterBox.lastFullChangeAt + pet.litterBox.fullChangeIntervalDays * dayMs;
       aggregated.push({
-        id: `auto_pet_med_${med.id}`,
-        title: `Bayonetta: ${med.name}`,
-        description: `Dose veterinária programada para a gata Bayonetta.`,
-        date: med.nextDueDate,
-        endDate: med.nextDueDate + 3600 * 1000,
+        id: `auto_pet_sand_change_${pet.id}`,
+        title: `Troca de Areia: ${pet.name}`,
+        description: `Ciclo de higienização completa da caixa de areia sanitária de ${pet.name}.`,
+        date: Math.max(now, nextSandChange),
+        endDate: Math.max(now, nextSandChange) + 3600 * 1000,
         category: 'pet',
         createdByUserId: 'system',
-        createdByName: 'Bayonetta Care',
+        createdByName: `${pet.name} Care`,
         source: 'pet',
-        sourceId: med.id,
+        sourceId: pet.id,
+      });
+    }
+
+    // 2c. Pet Bath (for dogs / hygiene)
+    if (pet.bath) {
+      const nextBath = pet.bath.lastBathAt + pet.bath.intervalDays * dayMs;
+      aggregated.push({
+        id: `auto_pet_bath_${pet.id}`,
+        title: `Banho & Tosa: ${pet.name}`,
+        description: `Ciclo de higiene e banho programado para ${pet.name}.`,
+        date: Math.max(now, nextBath),
+        endDate: Math.max(now, nextBath) + 3600 * 1000,
+        category: 'pet',
+        createdByUserId: 'system',
+        createdByName: `${pet.name} Care`,
+        source: 'pet',
+        sourceId: pet.id,
       });
     }
   });
 
-  // 3. Pet Full Sand Change (for cats) or Bath (for dogs)
-  if (pet.litterBox) {
-    const nextSandChange = pet.litterBox.lastFullChangeAt + pet.litterBox.fullChangeIntervalDays * dayMs;
-    aggregated.push({
-      id: `auto_pet_sand_change_${pet.id}`,
-      title: `Troca de Areia: ${pet.name}`,
-      description: `Ciclo de higienização completa da caixa de areia sanitária de ${pet.name}.`,
-      date: Math.max(now, nextSandChange),
-      endDate: Math.max(now, nextSandChange) + 3600 * 1000,
-      category: 'pet',
-      createdByUserId: 'system',
-      createdByName: `${pet.name} Care`,
-      source: 'pet',
-      sourceId: pet.id,
-    });
-  }
-
-  if (pet.bath) {
-    const nextBath = pet.bath.lastBathAt + pet.bath.intervalDays * dayMs;
-    aggregated.push({
-      id: `auto_pet_bath_${pet.id}`,
-      title: `Banho & Tosa: ${pet.name}`,
-      description: `Ciclo de higiene e banho programado para ${pet.name}.`,
-      date: Math.max(now, nextBath),
-      endDate: Math.max(now, nextBath) + 3600 * 1000,
-      category: 'pet',
-      createdByUserId: 'system',
-      createdByName: `${pet.name} Care`,
-      source: 'pet',
-      sourceId: pet.id,
-    });
-  }
+  // 3. Recurring Bills / Expenses
+  expenses?.forEach((exp) => {
+    if (exp.isRecurring && exp.recurringDay) {
+      const currentDate = new Date(now);
+      const currentMonth = currentDate.getMonth();
+      const currentYear = currentDate.getFullYear();
+      let billDate = new Date(currentYear, currentMonth, exp.recurringDay, 10, 0, 0).getTime();
+      if (billDate < now - dayMs) {
+        billDate = new Date(currentYear, currentMonth + 1, exp.recurringDay, 10, 0, 0).getTime();
+      }
+      aggregated.push({
+        id: `auto_expense_${exp.id}_${billDate}`,
+        title: `Conta: ${exp.description}`,
+        description: `Vencimento de fatura recorrente (R$ ${exp.amount.toFixed(2)})`,
+        date: billDate,
+        endDate: billDate + 3600 * 1000,
+        category: 'contas',
+        createdByUserId: exp.paidByUserId,
+        createdByName: 'Financeiro',
+        source: 'expense',
+        sourceId: exp.id,
+      });
+    }
+  });
 
   // 4. Sort all by date ascending
   return aggregated.sort((a, b) => a.date - b.date);

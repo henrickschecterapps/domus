@@ -20,7 +20,7 @@ interface CalendarModalProps {
 }
 
 export const CalendarModal: React.FC<CalendarModalProps> = ({ isOpen, onClose }) => {
-  const { events, chores, rooms, pet, expenses, currentUser, addHouseEvent, deleteHouseEvent, showToast } = useApp();
+  const { events, chores, rooms, pet, pets, expenses, currentUser, addHouseEvent, deleteHouseEvent, showToast } = useApp();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -37,7 +37,7 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({ isOpen, onClose })
   const now = Date.now();
   const dayMs = 86_400_000;
 
-  const unifiedEvents = getUnifiedHouseEvents(events, chores, rooms, pet, expenses, now);
+  const unifiedEvents = getUnifiedHouseEvents(events, chores, rooms, pets || (pet ? [pet] : []), expenses, now);
 
   const filteredEvents = unifiedEvents.filter(
     (e) => selectedCategory === 'all' || e.category === selectedCategory

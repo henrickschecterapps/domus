@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Sparkles,
@@ -120,20 +120,51 @@ export const PetView: React.FC = () => {
   // Weight form state
   const [newWeightInput, setNewWeightInput] = useState('');
 
+  // Default members for schedule assignments
+  const defaultMember1 = members[0]?.userId || 'user_1';
+  const defaultMember2 = members[1]?.userId || defaultMember1;
+
   // Schedule modal state
   const [scheduleAssignments, setScheduleAssignments] = useState<Record<DayOfWeek, string>>(() => {
     return (
       pet.dutySchedule?.weeklyAssignment || {
-        0: 'user_1',
-        1: 'user_1',
-        2: 'user_2',
-        3: 'user_1',
-        4: 'user_2',
-        5: 'user_1',
-        6: 'user_2',
+        0: defaultMember1,
+        1: defaultMember1,
+        2: defaultMember2,
+        3: defaultMember1,
+        4: defaultMember2,
+        5: defaultMember1,
+        6: defaultMember2,
       }
     );
   });
+
+  // Sync vet contact whenever active pet changes or vet modal opens
+  useEffect(() => {
+    setVetName(pet.vetContact?.name || '');
+    setVetPhone(pet.vetContact?.phone || '');
+    setVetClinic(pet.vetContact?.clinicName || '');
+    setVetAddress(pet.vetContact?.address || '');
+  }, [pet.id, pet.vetContact?.name, pet.vetContact?.phone, pet.vetContact?.clinicName, pet.vetContact?.address, showVetModal]);
+
+  // Sync schedule assignments whenever active pet changes or schedule modal opens
+  useEffect(() => {
+    const m1 = members[0]?.userId || 'user_1';
+    const m2 = members[1]?.userId || m1;
+    if (pet.dutySchedule?.weeklyAssignment) {
+      setScheduleAssignments(pet.dutySchedule.weeklyAssignment);
+    } else {
+      setScheduleAssignments({
+        0: m1,
+        1: m1,
+        2: m2,
+        3: m1,
+        4: m2,
+        5: m1,
+        6: m2,
+      });
+    }
+  }, [pet.id, pet.dutySchedule?.weeklyAssignment, showScheduleModal, members]);
 
   // Reminder form state
   const [remTitle, setRemTitle] = useState('');

@@ -309,7 +309,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (enabled) triggerHaptic('light');
   };
 
-  const currentUser = members.find((m) => m.userId === currentUserId) || members[0];
+  const fallbackMember: HouseMember = {
+    userId: currentUserId || 'user_1',
+    displayName: 'Morador',
+    email: '',
+    role: 'member',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80',
+    totalXP: 0,
+    weeklyXP: 0,
+    streakDays: 1,
+    color: '#C25E34',
+    pixKeyType: 'random',
+  };
+
+  const currentUser = members.find((m) => m.userId === currentUserId) || members[0] || fallbackMember;
   const pet = pets.find((p) => p.id === selectedPetId) || pets[0] || createInitialPet();
 
   const showToast = useCallback((message: string, type: 'success' | 'warning' | 'info' | 'error' = 'info') => {
@@ -1294,17 +1307,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         )
       );
     } else {
-      // Create new pantry item
-      const newPantry: PantryItem = {
-        id: 'pantry_' + Date.now(),
-        name: item.name,
-        category: (item.category as any) || 'mercearia',
-        currentQuantity: item.quantity,
-        minQuantity: 1,
-        unit: (item.unit as any) || 'un',
-        autoAddToShopping: true,
-      };
-      setPantryItems((prev) => [...prev, newPantry]);
+      // Check if an existing pantry item has the same normalized name
+      setPantryItems((prev) => {
+        const normalizedName = item.name.trim().toLowerCase();
+        const existing = prev.find((p) => p.name.trim().toLowerCase() === normalizedName);
+        if (existing) {
+          return prev.map((p) =>
+            p.id === existing.id
+              ? { ...p, currentQuantity: p.currentQuantity + item.quantity }
+              : p
+          );
+        }
+        // Create new pantry item
+        const newPantry: PantryItem = {
+          id: 'pantry_' + Date.now(),
+          name: item.name,
+          category: (item.category as any) || 'mercearia',
+          currentQuantity: item.quantity,
+          minQuantity: 1,
+          unit: (item.unit as any) || 'un',
+          autoAddToShopping: true,
+        };
+        return [...prev, newPantry];
+      });
     }
 
     // Mark as bought and remove from active list

@@ -10,14 +10,14 @@ interface CalendarWidgetProps {
 }
 
 export const CalendarWidget: React.FC<CalendarWidgetProps> = ({ onOpenFullCalendar }) => {
-  const { events, chores, rooms, pet, expenses } = useApp();
+  const { events, chores, rooms, pet, pets, expenses } = useApp();
   const [selectedDayOffset, setSelectedDayOffset] = useState<number>(0);
 
   const now = Date.now();
   const dayMs = 86_400_000;
 
   // Build unified schedule
-  const unifiedEvents = getUnifiedHouseEvents(events, chores, rooms, pet, expenses, now);
+  const unifiedEvents = getUnifiedHouseEvents(events, chores, rooms, pets || (pet ? [pet] : []), expenses, now);
 
   // Generate 7 upcoming days strip
   const days = Array.from({ length: 7 }, (_, i) => {

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   ShieldCheck,
@@ -145,6 +145,15 @@ export const AdminView: React.FC = () => {
   const [wifiPassword, setWifiPassword] = useState(house.wifiPassword || '');
   const [copiedWifiPass, setCopiedWifiPass] = useState(false);
   const [showWifiPass, setShowWifiPass] = useState(false);
+
+  useEffect(() => {
+    setHouseName(house.name);
+    setHouseAddress(house.address || '');
+    setWeeklyGoalXP(house.weeklyGoalXP || 500);
+    setRulesNotes(house.rulesNotes || '');
+    setWifiSsid(house.wifiSsid || '');
+    setWifiPassword(house.wifiPassword || '');
+  }, [house.id, house.name, house.address, house.weeklyGoalXP, house.rulesNotes, house.wifiSsid, house.wifiPassword]);
 
   // UI modals
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);

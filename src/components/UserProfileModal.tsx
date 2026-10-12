@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   X,
@@ -55,16 +55,28 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     ? members.find((m) => m.userId === targetUserId) || currentUser
     : currentUser;
 
-  const [displayName, setDisplayName] = useState(memberToEdit.displayName);
-  const [email, setEmail] = useState(memberToEdit.email || '');
-  const [phone, setPhone] = useState(memberToEdit.phone || '');
+  const [displayName, setDisplayName] = useState(memberToEdit?.displayName || '');
+  const [email, setEmail] = useState(memberToEdit?.email || '');
+  const [phone, setPhone] = useState(memberToEdit?.phone || '');
   const [pixKeyType, setPixKeyType] = useState<'cpf' | 'email' | 'phone' | 'random'>(
-    memberToEdit.pixKeyType || 'email'
+    (memberToEdit?.pixKeyType as any) || 'email'
   );
-  const [pixKey, setPixKey] = useState(memberToEdit.pixKey || '');
-  const [assignedRoomId, setAssignedRoomId] = useState(memberToEdit.assignedRoomId || '');
-  const [avatarUrl, setAvatarUrl] = useState(memberToEdit.avatarUrl || '');
+  const [pixKey, setPixKey] = useState(memberToEdit?.pixKey || '');
+  const [assignedRoomId, setAssignedRoomId] = useState(memberToEdit?.assignedRoomId || '');
+  const [avatarUrl, setAvatarUrl] = useState(memberToEdit?.avatarUrl || '');
   const [copiedPix, setCopiedPix] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && memberToEdit) {
+      setDisplayName(memberToEdit.displayName || '');
+      setEmail(memberToEdit.email || '');
+      setPhone(memberToEdit.phone || '');
+      setPixKeyType((memberToEdit.pixKeyType as any) || 'email');
+      setPixKey(memberToEdit.pixKey || '');
+      setAssignedRoomId(memberToEdit.assignedRoomId || '');
+      setAvatarUrl(memberToEdit.avatarUrl || '');
+    }
+  }, [isOpen, targetUserId, memberToEdit?.userId, memberToEdit?.displayName, memberToEdit?.avatarUrl]);
 
   if (!isOpen) return null;
 

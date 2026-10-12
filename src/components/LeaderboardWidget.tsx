@@ -5,10 +5,10 @@ import { ActivityRing } from './ActivityRing';
 import { Badge } from './untitled/Badge';
 
 export const LeaderboardWidget: React.FC = () => {
-  const { members, resetWeeklyLeaderboard } = useApp();
+  const { members, house, resetWeeklyLeaderboard } = useApp();
 
   const sortedMembers = [...members].sort((a, b) => b.weeklyXP - a.weeklyXP);
-  const WEEKLY_GOAL_XP = 300;
+  const weeklyGoalXP = house.weeklyGoalXP || 500;
 
   // Warm Editorial Sanctuary organic activity ring palette
   const ringColors = ['#C25E34', '#2E7D32', '#D97706', '#8C3F22'];
@@ -24,7 +24,7 @@ export const LeaderboardWidget: React.FC = () => {
             <h2 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider font-display">
               Anéis de Atividade & Ranking
             </h2>
-            <p className="text-[11px] text-gray-500 dark:text-gray-400">Meta semanal: {WEEKLY_GOAL_XP} XP</p>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400">Meta semanal: {weeklyGoalXP} XP</p>
           </div>
         </div>
         <button
@@ -39,7 +39,7 @@ export const LeaderboardWidget: React.FC = () => {
 
       <div className="space-y-3">
         {sortedMembers.map((member, index) => {
-          const percentage = Math.round((member.weeklyXP / WEEKLY_GOAL_XP) * 100);
+          const percentage = Math.round((member.weeklyXP / weeklyGoalXP) * 100);
           const ringColor = ringColors[index % ringColors.length];
 
           return (
@@ -76,7 +76,7 @@ export const LeaderboardWidget: React.FC = () => {
                   </div>
 
                   <span className="text-xs font-bold text-gray-900 dark:text-white">
-                    {member.weeklyXP} <span className="text-[10px] font-normal text-gray-400">/ {WEEKLY_GOAL_XP} XP</span>
+                    {member.weeklyXP} <span className="text-[10px] font-normal text-gray-400">/ {weeklyGoalXP} XP</span>
                   </span>
                 </div>
 

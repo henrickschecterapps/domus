@@ -189,6 +189,46 @@ export interface PixPayloadParams {
   description?: string;
 }
 
+export function sanitizePixKey(key: string): string {
+  const trimmed = key.trim();
+  if (!trimmed) return '';
+
+  // If email
+  if (trimmed.includes('@')) {
+    return trimmed.toLowerCase();
+  }
+
+  // If UUID / EVP key
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed);
+  if (isUuid) {
+    return trimmed.toLowerCase();
+  }
+
+  const digitsOnly = trimmed.replace(/\D/g, '');
+
+  // If explicit CPF format (contains . or -)
+  if (trimmed.includes('.') || trimmed.includes('-')) {
+    if (digitsOnly.length === 11) return digitsOnly;
+  }
+
+  // CNPJ
+  if (digitsOnly.length === 14) {
+    return digitsOnly;
+  }
+
+  // Phone international or national format
+  if (trimmed.startsWith('+55')) {
+    return `+55${digitsOnly.slice(2)}`;
+  } else if (trimmed.startsWith('+')) {
+    return `+${digitsOnly}`;
+  } else if (digitsOnly.length === 10 || digitsOnly.length === 11) {
+    // If not a CPF format, BACEN requires +55 prefix for phone keys
+    return `+55${digitsOnly}`;
+  }
+
+  return trimmed;
+}
+
 /**
  * Generates an official Central Bank of Brazil (BACEN) EMV BR Code string (PIX Copia e Cola).
  * Works directly with Nubank, Itaú, Santander, Inter, BB, Mercado Pago, etc.
@@ -197,7 +237,7 @@ export function generatePixPayload(params: PixPayloadParams): string {
   const { pixKey, recipientName, city = 'BRASILIA', amount, txid = '***', description } = params;
 
   // Clean PIX Key (if phone or cpf, sanitize according to BACEN spec)
-  const cleanKey = pixKey.trim();
+  const cleanKey = sanitizePixKey(pixKey);
 
   // 00: Format Indicator
   let payload = formatTlv('00', '01');
