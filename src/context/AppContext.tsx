@@ -11,6 +11,7 @@ import {
   PantryItem,
   ShoppingItem,
   Expense,
+  HouseBudget,
   MedicalRecord,
   EmergencyContact,
   HouseReward,
@@ -98,9 +99,10 @@ interface AppContextType {
   deleteShoppingItem: (id: string) => void;
   clearBoughtItems: () => void;
   // Expense actions
-  addExpense: (expense: Omit<Expense, 'id'>) => void;
+  addExpense: (expense: Omit<Expense, 'id'>, totalInstallments?: number) => void;
   toggleExpenseSettled: (id: string) => void;
   deleteExpense: (id: string) => void;
+  updateHouseBudget: (budget: Partial<HouseBudget>) => void;
   // Calendar Event actions
   events: HouseEvent[];
   addHouseEvent: (event: Omit<HouseEvent, 'id'>) => void;
@@ -991,7 +993,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Expense Actions
-  const addExpense = (expense: Omit<Expense, 'id'>) => {
+  const addExpense = (expense: Omit<Expense, 'id'>, totalInstallments: number = 1) => {
+    if (totalInstallments > 1) {
+      const count = Math.min(Math.max(2, totalInstallments), 24);
+      const groupId = 'inst_' + Date.now();
+      const perInstallmentAmount = Number((expense.amount / count).toFixed(2));
+      const newExpensesList: Expense[] = [];
+
+      for (let i = 1; i <= count; i++) {
+        const installmentDate = new Date(expense.date);
+        installmentDate.setMonth(installmentDate.getMonth() + (i - 1));
+
+        // Adjust last installment to prevent penny rounding discrepancies
+        const installmentAmount =
+          i === count
+            ? Number((expense.amount - perInstallmentAmount * (count - 1)).toFixed(2))
+            : perInstallmentAmount;
+
+        // Custom splits adjusted for installments if exact mode
+        let adjustedCustomSplits = expense.customSplits;
+        if (expense.splitType === 'exact' && expense.customSplits) {
+          adjustedCustomSplits = {};
+          for (const [uid, userTotal] of Object.entries(expense.customSplits)) {
+            const userPart = Number((userTotal / count).toFixed(2));
+            adjustedCustomSplits[uid] =
+              i === count
+                ? Number((userTotal - userPart * (count - 1)).toFixed(2))
+                : userPart;
+          }
+        }
+
+        newExpensesList.push({
+          ...expense,
+          id: `exp_${Date.now()}_${i}`,
+          description: `${expense.description} (${i}/${count})`,
+          amount: installmentAmount,
+          date: installmentDate.getTime(),
+          customSplits: adjustedCustomSplits,
+          installment: {
+            current: i,
+            total: count,
+            groupId,
+          },
+        });
+      }
+
+      setExpenses((prev) => [...newExpensesList, ...prev]);
+      playCoinSound(soundEnabled);
+      triggerHaptic('medium');
+      showToast(`Compra parcelada em ${count}x registrada com sucesso!`, 'success');
+      return;
+    }
+
     const newExpense: Expense = {
       ...expense,
       id: 'exp_' + Date.now(),
@@ -1000,6 +1053,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     playCoinSound(soundEnabled);
     triggerHaptic('medium');
     showToast(`Despesa "${expense.description}" registrada!`, 'success');
+  };
+
+  const updateHouseBudget = (budgetUpdate: Partial<HouseBudget>) => {
+    setHouse((prev) => {
+      const currentBudget: HouseBudget = prev.budget || {
+        monthlyTarget: 3800,
+        alertThresholdPercent: 80,
+        categoryTargets: {
+          supermercado: 1500,
+          contas: 1200,
+          casa: 600,
+          pet: 500,
+        },
+      };
+      const updatedBudget: HouseBudget = {
+        ...currentBudget,
+        ...budgetUpdate,
+        categoryTargets: {
+          ...(currentBudget.categoryTargets || {}),
+          ...(budgetUpdate.categoryTargets || {}),
+        },
+      };
+      return {
+        ...prev,
+        budget: updatedBudget,
+      };
+    });
+    showToast('Teto orçamentário atualizado!', 'success');
   };
 
   const toggleExpenseSettled = (id: string) => {
@@ -1484,6 +1565,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addExpense,
         toggleExpenseSettled,
         deleteExpense,
+        updateHouseBudget,
         events,
         addHouseEvent,
         deleteHouseEvent,

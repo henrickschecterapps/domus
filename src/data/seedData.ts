@@ -63,6 +63,16 @@ export const DEFAULT_HOUSE: House = {
     { id: 'n2', authorId: 'user_1', authorName: 'Henrique', content: 'Manutenção da rede elétrica do condomínio marcada para sexta às 10h. ⚡', color: 'blue', isPinned: false, createdAt: Date.now() - 12 * 3600 * 1000 },
     { id: 'n3', authorId: 'user_1', authorName: 'Henrique', content: 'Lembrar de encomendar os sachês gastro da Bayonetta que estão acabando.', color: 'pink', isPinned: false, createdAt: Date.now() - 24 * 3600 * 1000 },
   ],
+  budget: {
+    monthlyTarget: 3800,
+    alertThresholdPercent: 80,
+    categoryTargets: {
+      supermercado: 1500,
+      contas: 1200,
+      casa: 600,
+      pet: 500,
+    },
+  },
 };
 
 export function createInitialRooms(): Room[] {

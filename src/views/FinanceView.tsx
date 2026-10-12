@@ -1,9 +1,14 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import QRCode from 'qrcode';
 import { useApp } from '../context/AppContext';
-import { ExpenseCategory } from '../types';
+import { ExpenseCategory, HouseBudget, SplitType } from '../types';
 import {
   calculateFinancialBalances,
   formatCurrencyBRL,
+  generatePixPayload,
+  calculateBudgetStatus,
+  generateExpensesCsv,
+  SettlementTransfer,
 } from '../utils/financeMath';
 import {
   Wallet,
@@ -16,13 +21,18 @@ import {
   MessageCircle,
   Paperclip,
   X,
-  Calendar,
-  PieChart,
   Repeat,
-  CheckCircle2,
-  Clock,
+  PieChart,
+  Download,
+  Printer,
+  Sliders,
+  AlertTriangle,
+  TrendingUp,
+  Percent,
+  FileText,
+  QrCode as QrCodeIcon,
+  CreditCard,
   Sparkles,
-  ExternalLink,
 } from 'lucide-react';
 import { BottomSheet } from '../components/BottomSheet';
 import { Button } from '../components/untitled/Button';
@@ -32,27 +42,37 @@ import { playCoinSound, playSuccessChime } from '../utils/soundEffects';
 
 export const FinanceView: React.FC = () => {
   const {
+    house,
     expenses,
     members,
     currentUser,
     addExpense,
     toggleExpenseSettled,
     deleteExpense,
+    updateHouseBudget,
     showToast,
   } = useApp();
 
   const soundEnabled = currentUser.soundEnabled ?? true;
   const vibrationEnabled = currentUser.vibrationEnabled ?? true;
 
+  // Add Expense Sheet State
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [paidByUserId, setPaidByUserId] = useState(currentUser.userId);
   const [category, setCategory] = useState<ExpenseCategory>('supermercado');
+
+  // Split configuration
+  const [splitType, setSplitType] = useState<SplitType>('equal');
   const [splitWithAll, setSplitWithAll] = useState(true);
   const [selectedSplitUsers, setSelectedSplitUsers] = useState<string[]>(
     members.map((m) => m.userId)
   );
+  const [customSplits, setCustomSplits] = useState<Record<string, number>>({});
+
+  // Installment (Parcelamento)
+  const [installments, setInstallments] = useState<number>(1);
 
   // Recurring bills
   const [isRecurring, setIsRecurring] = useState(false);
@@ -63,20 +83,91 @@ export const FinanceView: React.FC = () => {
   const [viewingReceiptUrl, setViewingReceiptUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // PIX feedback
-  const [copiedPixTarget, setCopiedPixTarget] = useState<string | null>(null);
+  // PIX QR Code & Feedback Modal
+  const [activePixSettlement, setActivePixSettlement] = useState<SettlementTransfer | null>(null);
+  const [pixQrDataUrl, setPixQrDataUrl] = useState<string | null>(null);
+  const [pixPayloadString, setPixPayloadString] = useState<string>('');
+  const [copiedPixType, setCopiedPixType] = useState<'payload' | 'key' | null>(null);
 
+  // Budget Modal State
+  const [showBudgetModal, setShowBudgetModal] = useState(false);
+  const [budgetMonthlyTarget, setBudgetMonthlyTarget] = useState<string>(
+    String(house.budget?.monthlyTarget || 3800)
+  );
+  const [budgetThreshold, setBudgetThreshold] = useState<string>(
+    String(house.budget?.alertThresholdPercent || 80)
+  );
+  const [categoryTargetsInput, setCategoryTargetsInput] = useState<Record<ExpenseCategory, string>>({
+    supermercado: String(house.budget?.categoryTargets?.supermercado || 1500),
+    contas: String(house.budget?.categoryTargets?.contas || 1200),
+    casa: String(house.budget?.categoryTargets?.casa || 600),
+    pet: String(house.budget?.categoryTargets?.pet || 500),
+  });
+
+  // Report Modal State
+  const [showReportModal, setShowReportModal] = useState(false);
+
+  // Financial calculations
   const { balances, settlements, totalHouseSpend } = calculateFinancialBalances(
     expenses,
     members
   );
 
   const userBalance = balances[currentUser.userId] || {
+    userId: currentUser.userId,
+    displayName: currentUser.displayName,
     totalPaid: 0,
     fairShare: 0,
     net: 0,
   };
 
+  const budgetStatus = calculateBudgetStatus(expenses, house.budget);
+
+  // Sync split participants when member list changes
+  useEffect(() => {
+    if (splitWithAll) {
+      setSelectedSplitUsers(members.map((m) => m.userId));
+    }
+  }, [members, splitWithAll]);
+
+  // Generate PIX QR Code whenever activePixSettlement changes
+  useEffect(() => {
+    if (!activePixSettlement) {
+      setPixQrDataUrl(null);
+      setPixPayloadString('');
+      return;
+    }
+
+    const creditor = members.find((m) => m.userId === activePixSettlement.toUserId);
+    if (!creditor?.pixKey) {
+      setPixQrDataUrl(null);
+      setPixPayloadString('');
+      return;
+    }
+
+    const payload = generatePixPayload({
+      pixKey: creditor.pixKey,
+      recipientName: creditor.displayName,
+      amount: activePixSettlement.amount,
+      description: 'Acerto Domus',
+      city: 'SAO PAULO',
+    });
+
+    setPixPayloadString(payload);
+
+    QRCode.toDataURL(payload, {
+      width: 280,
+      margin: 1,
+      color: {
+        dark: '#111827',
+        light: '#FFFFFF',
+      },
+    })
+      .then((url) => setPixQrDataUrl(url))
+      .catch((err) => console.error('Erro ao gerar QR Code PIX:', err));
+  }, [activePixSettlement, members]);
+
+  // Handle Receipt Upload
   const handleReceiptUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -94,43 +185,148 @@ export const FinanceView: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
+  // Helper to initialize custom splits evenly
+  const initializeEvenSplits = (type: SplitType, totalVal: number) => {
+    const participants = splitWithAll ? members.map((m) => m.userId) : selectedSplitUsers;
+    if (participants.length === 0) return;
+
+    if (type === 'percentage') {
+      const perUser = Number((100 / participants.length).toFixed(1));
+      const initial: Record<string, number> = {};
+      participants.forEach((uid) => {
+        initial[uid] = perUser;
+      });
+      setCustomSplits(initial);
+    } else if (type === 'exact') {
+      const perUser = Number((totalVal / participants.length).toFixed(2));
+      const initial: Record<string, number> = {};
+      participants.forEach((uid) => {
+        initial[uid] = perUser;
+      });
+      setCustomSplits(initial);
+    }
+  };
+
+  // Handle Create Expense
   const handleCreateExpense = (e: React.FormEvent) => {
     e.preventDefault();
     const parsedAmount = parseFloat(amount.replace(',', '.'));
-    if (!description.trim() || isNaN(parsedAmount) || parsedAmount <= 0) return;
+    if (!description.trim() || isNaN(parsedAmount) || parsedAmount <= 0) {
+      showToast('Insira uma descrição e valor válidos.', 'warning');
+      return;
+    }
 
     const splitAmong = splitWithAll ? members.map((m) => m.userId) : selectedSplitUsers;
+    if (splitAmong.length === 0) {
+      showToast('Selecione pelo menos um morador para a divisão.', 'warning');
+      return;
+    }
 
-    addExpense({
-      description: description.trim(),
-      amount: parsedAmount,
-      paidByUserId,
-      splitAmongUserIds: splitAmong,
-      category,
-      date: Date.now(),
-      isSettled: false,
-      receiptUrl: receiptUrl || undefined,
-      isRecurring,
-      recurringDay: isRecurring ? recurringDay : undefined,
-    });
+    // Validation for percentage splits
+    if (splitType === 'percentage') {
+      const totalPct = splitAmong.reduce((acc, uid) => acc + (customSplits[uid] || 0), 0);
+      if (Math.abs(totalPct - 100) > 0.5) {
+        showToast(`A soma das porcentagens deve dar 100% (atual: ${totalPct.toFixed(1)}%)`, 'warning');
+        return;
+      }
+    }
+
+    // Validation for exact splits
+    if (splitType === 'exact') {
+      const totalExact = splitAmong.reduce((acc, uid) => acc + (customSplits[uid] || 0), 0);
+      if (Math.abs(totalExact - parsedAmount) > 0.1) {
+        showToast(
+          `A soma dos valores (R$ ${totalExact.toFixed(2)}) deve ser igual ao total da despesa (R$ ${parsedAmount.toFixed(2)})`,
+          'warning'
+        );
+        return;
+      }
+    }
+
+    addExpense(
+      {
+        description: description.trim(),
+        amount: parsedAmount,
+        paidByUserId,
+        splitAmongUserIds: splitAmong,
+        category,
+        date: Date.now(),
+        isSettled: false,
+        receiptUrl: receiptUrl || undefined,
+        isRecurring,
+        recurringDay: isRecurring ? recurringDay : undefined,
+        splitType,
+        customSplits: splitType !== 'equal' ? customSplits : undefined,
+      },
+      installments
+    );
 
     if (soundEnabled) playCoinSound(soundEnabled);
     if (vibrationEnabled) triggerHaptic('medium');
 
+    // Reset Form
     setDescription('');
     setAmount('');
     setReceiptUrl(null);
     setIsRecurring(false);
+    setInstallments(1);
+    setSplitType('equal');
+    setCustomSplits({});
     setShowAddSheet(false);
-    showToast('Despesa registrada com sucesso!', 'success');
   };
 
-  const handleCopyPix = (pixKey: string, creditorName: string) => {
-    navigator.clipboard.writeText(pixKey);
-    setCopiedPixTarget(pixKey);
+  // Copy PIX Payload or Raw Key
+  const handleCopyPixString = (textToCopy: string, type: 'payload' | 'key', label: string) => {
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedPixType(type);
     if (vibrationEnabled) triggerHaptic('light');
-    showToast(`Chave Pix de ${creditorName} copiada!`, 'success');
-    setTimeout(() => setCopiedPixTarget(null), 2500);
+    showToast(`${label} copiado!`, 'success');
+    setTimeout(() => setCopiedPixType(null), 2500);
+  };
+
+  // Save Budget Configuration
+  const handleSaveBudget = (e: React.FormEvent) => {
+    e.preventDefault();
+    const target = parseFloat(budgetMonthlyTarget.replace(',', '.'));
+    const threshold = parseFloat(budgetThreshold);
+
+    if (isNaN(target) || target <= 0) {
+      showToast('Defina um teto mensal válido.', 'warning');
+      return;
+    }
+
+    const catTargets: Partial<Record<ExpenseCategory, number>> = {};
+    (Object.keys(categoryTargetsInput) as ExpenseCategory[]).forEach((cat) => {
+      const val = parseFloat(categoryTargetsInput[cat].replace(',', '.'));
+      if (!isNaN(val) && val >= 0) {
+        catTargets[cat] = val;
+      }
+    });
+
+    updateHouseBudget({
+      monthlyTarget: target,
+      alertThresholdPercent: isNaN(threshold) ? 80 : threshold,
+      categoryTargets: catTargets,
+    });
+
+    setShowBudgetModal(false);
+  };
+
+  // Export CSV
+  const handleExportCsv = () => {
+    const csvContent = generateExpensesCsv(expenses, members);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const now = new Date();
+    const fileName = `domus-despesas-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}.csv`;
+    link.setAttribute('href', url);
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showToast('Planilha CSV exportada com sucesso!', 'success');
   };
 
   // Category totals
@@ -146,64 +342,222 @@ export const FinanceView: React.FC = () => {
   });
 
   const totalAllTime = Object.values(categoryTotals).reduce((a, b) => a + b, 0);
-
-  // Recurring bills
   const recurringExpenses = expenses.filter((e) => e.isRecurring);
+
+  // Status badges & colors for Budget
+  const getBudgetColorClass = () => {
+    switch (budgetStatus.status) {
+      case 'exceeded':
+        return 'text-error-600 dark:text-error-400 bg-error-50 dark:bg-error-950/50 border-error-300 dark:border-error-900';
+      case 'danger':
+        return 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/50 border-orange-300 dark:border-orange-900';
+      case 'warning':
+        return 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-900';
+      default:
+        return 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-900';
+    }
+  };
+
+  const getProgressBarColor = () => {
+    switch (budgetStatus.status) {
+      case 'exceeded':
+        return 'bg-error-500';
+      case 'danger':
+        return 'bg-orange-500';
+      case 'warning':
+        return 'bg-amber-500';
+      default:
+        return 'bg-emerald-500';
+    }
+  };
 
   return (
     <div className="space-y-5 pb-20 animate-in fade-in duration-200 w-full">
-      {/* Net Balance Master Card */}
-      <div className="rounded-2xl bg-gradient-to-br from-brand-600 via-brand-700 to-brand-800 text-white dark:bg-gray-900 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900 border border-brand-500/20 dark:border-gray-800 p-6 shadow-u-md relative overflow-hidden transition-all">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-white/15 dark:bg-brand-950/60 flex items-center justify-center">
-              <Wallet className="w-4 h-4 text-white stroke-[2.2]" />
+      {/* Top Header Actions (Nova Despesa, Exportar CSV, Relatório, Ajustar Teto) */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold font-display text-gray-900 dark:text-white">
+            Finanças & Orçamento
+          </h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Divisão inteligente, limites mensais e cobranças via PIX
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleExportCsv}
+            icon={Download}
+            title="Baixar planilha CSV para Excel/Sheets"
+          >
+            Exportar CSV
+          </Button>
+
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowReportModal(true)}
+            icon={FileText}
+            title="Ver Relatório de Fechamento do Mês"
+          >
+            Relatório
+          </Button>
+
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setShowAddSheet(true)}
+            icon={Plus}
+          >
+            Nova Despesa
+          </Button>
+        </div>
+      </div>
+
+      {/* Net Balance Master Card & Monthly Budget Hero Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Net Balance Card */}
+        <div className="rounded-2xl bg-gradient-to-br from-brand-600 via-brand-700 to-brand-800 text-white dark:bg-gray-900 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900 border border-brand-500/20 dark:border-gray-800 p-6 shadow-u-md relative overflow-hidden transition-all flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-white/15 dark:bg-brand-950/60 flex items-center justify-center">
+                  <Wallet className="w-4 h-4 text-white stroke-[2.2]" />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wider text-brand-100 dark:text-gray-300">
+                  Balanço Individual
+                </span>
+              </div>
+              <span className="text-xs text-brand-100/90 dark:text-gray-400 font-medium">
+                Pendente na casa: <strong className="text-white font-semibold">{formatCurrencyBRL(totalHouseSpend)}</strong>
+              </span>
             </div>
-            <span className="text-xs font-bold uppercase tracking-wider text-brand-100 dark:text-gray-300">
-              Balanço Financeiro Individual
-            </span>
-          </div>
-          <span className="text-xs text-brand-100/90 dark:text-gray-400 font-medium">
-            Total em aberto: <strong className="text-white font-semibold">{formatCurrencyBRL(totalHouseSpend)}</strong>
-          </span>
-        </div>
 
-        <div className="my-4">
-          <span className="text-xs text-brand-200 dark:text-gray-400 block mb-1">
-            {userBalance.net > 0
-              ? 'Você tem a receber dos moradores'
-              : userBalance.net < 0
-              ? 'Você precisa transferir aos moradores'
-              : 'Seu saldo está perfeitamente equilibrado'}
-          </span>
-          <div className="flex items-baseline gap-2">
-            <span
-              className={`text-3xl sm:text-4xl font-bold tracking-tight ${
-                userBalance.net > 0
-                  ? 'text-white dark:text-success-400'
+            <div className="my-4">
+              <span className="text-xs text-brand-200 dark:text-gray-400 block mb-1">
+                {userBalance.net > 0
+                  ? 'Você tem a receber dos moradores'
                   : userBalance.net < 0
-                  ? 'text-error-200 dark:text-error-400'
-                  : 'text-white'
-              }`}
-            >
-              {formatCurrencyBRL(Math.abs(userBalance.net))}
-            </span>
+                  ? 'Você precisa transferir aos moradores'
+                  : 'Seu saldo está perfeitamente equilibrado'}
+              </span>
+              <div className="flex items-baseline gap-2">
+                <span
+                  className={`text-3xl sm:text-4xl font-bold tracking-tight ${
+                    userBalance.net > 0
+                      ? 'text-white dark:text-emerald-400'
+                      : userBalance.net < 0
+                      ? 'text-rose-200 dark:text-rose-400'
+                      : 'text-white'
+                  }`}
+                >
+                  {formatCurrencyBRL(Math.abs(userBalance.net))}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/15 dark:border-gray-800 text-xs">
+            <div>
+              <span className="text-[11px] text-brand-200 dark:text-gray-400 block mb-0.5">
+                Desembolsado por você:
+              </span>
+              <span className="font-bold text-white text-sm">
+                {formatCurrencyBRL(userBalance.totalPaid)}
+              </span>
+            </div>
+            <div>
+              <span className="text-[11px] text-brand-200 dark:text-gray-400 block mb-0.5">
+                Sua cota justa calculada:
+              </span>
+              <span className="font-bold text-white text-sm">
+                {formatCurrencyBRL(userBalance.fairShare)}
+              </span>
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-white/15 dark:border-gray-800 text-xs">
-          <div>
-            <span className="text-[11px] text-brand-200 dark:text-gray-400 block mb-0.5">Total desembolsado por você:</span>
-            <span className="font-bold text-white text-sm">
-              {formatCurrencyBRL(userBalance.totalPaid)}
-            </span>
+        {/* Monthly Budget Card */}
+        <div className="rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-6 shadow-u-xs flex flex-col justify-between space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-100 dark:border-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                <TrendingUp className="w-4 h-4 stroke-[2.2]" />
+              </div>
+              <div>
+                <h3 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider">
+                  Teto Orçamentário do Mês
+                </h3>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                  {budgetStatus.daysLeftInMonth} dias restantes para fechar o mês
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowBudgetModal(true)}
+              className="p-1.5 rounded-lg text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-1 text-xs font-semibold"
+              title="Ajustar teto e metas por categoria"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>Ajustar Teto</span>
+            </button>
           </div>
-          <div>
-            <span className="text-[11px] text-brand-200 dark:text-gray-400 block mb-0.5">Sua cota justa calculada:</span>
-            <span className="font-bold text-white text-sm">
-              {formatCurrencyBRL(userBalance.fairShare)}
-            </span>
+
+          <div className="space-y-2">
+            <div className="flex items-baseline justify-between">
+              <div>
+                <span className="text-2xl font-black font-display text-gray-900 dark:text-white">
+                  {formatCurrencyBRL(budgetStatus.totalSpent)}
+                </span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 ml-1.5 font-medium">
+                  de {formatCurrencyBRL(budgetStatus.monthlyTarget)}
+                </span>
+              </div>
+              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${getBudgetColorClass()}`}>
+                {budgetStatus.percentageUsed}% consumido
+              </span>
+            </div>
+
+            {/* Visual Progress Bar */}
+            <div className="h-3 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden p-0.5">
+              <div
+                className={`h-full ${getProgressBarColor()} rounded-full transition-all duration-500`}
+                style={{ width: `${Math.min(100, budgetStatus.percentageUsed)}%` }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400 pt-1">
+              <span>
+                Disponível:{' '}
+                <strong className="text-gray-900 dark:text-white font-bold">
+                  {formatCurrencyBRL(budgetStatus.remaining)}
+                </strong>
+              </span>
+              <span>
+                Diária sugerida:{' '}
+                <strong className="text-gray-900 dark:text-white font-bold">
+                  {formatCurrencyBRL(budgetStatus.dailyRemainingBudget)}/dia
+                </strong>
+              </span>
+            </div>
           </div>
+
+          {/* Budget status notice */}
+          {budgetStatus.status === 'exceeded' && (
+            <div className="p-2.5 rounded-xl bg-error-50 dark:bg-error-950/40 border border-error-200 dark:border-error-900/50 flex items-center gap-2 text-xs text-error-700 dark:text-error-300">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <span>Atenção: O orçamento total da casa foi estourado neste mês!</span>
+            </div>
+          )}
+          {budgetStatus.status === 'danger' && (
+            <div className="p-2.5 rounded-xl bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-900/50 flex items-center gap-2 text-xs text-orange-700 dark:text-orange-300">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <span>Alerta: Já foi consumido mais de 90% do orçamento mensal estipulado.</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -220,7 +574,9 @@ export const FinanceView: React.FC = () => {
                 <h3 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider">
                   Acerto Simplificado de Contas
                 </h3>
-                <p className="text-[11px] text-gray-500 dark:text-gray-400">Compensação mínima com Chave PIX</p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                  Compensação mínima com Chave PIX e QR Code
+                </p>
               </div>
             </div>
             <button
@@ -249,7 +605,9 @@ export const FinanceView: React.FC = () => {
                 const creditorPixKey = creditor?.pixKey || '';
 
                 const whatsappMsg = encodeURIComponent(
-                  `Olá ${debtor?.displayName}! No Domus temos um acerto pendente de ${formatCurrencyBRL(settlement.amount)}. Segue minha chave Pix (${creditor?.pixKeyType || 'chave'}): ${creditorPixKey}`
+                  `Olá ${debtor?.displayName}! No Domus temos um acerto pendente de ${formatCurrencyBRL(
+                    settlement.amount
+                  )}. Segue minha chave Pix (${creditor?.pixKeyType || 'chave'}): ${creditorPixKey}`
                 );
 
                 return (
@@ -257,9 +615,9 @@ export const FinanceView: React.FC = () => {
                     key={idx}
                     className={`p-3.5 rounded-xl border text-xs transition-colors space-y-2.5 ${
                       isUserDebtor
-                        ? 'bg-error-50/50 dark:bg-error-950/30 border-error-200/80 dark:border-error-900/50'
+                        ? 'bg-rose-50/50 dark:bg-rose-950/30 border-rose-200/80 dark:border-rose-900/50'
                         : isUserCreditor
-                        ? 'bg-success-50/50 dark:bg-success-950/30 border-success-200/80 dark:border-success-900/50'
+                        ? 'bg-emerald-50/50 dark:bg-emerald-950/30 border-emerald-200/80 dark:border-emerald-900/50'
                         : 'bg-gray-50 dark:bg-gray-800/40 border-gray-200/60 dark:border-gray-800'
                     }`}
                   >
@@ -275,20 +633,16 @@ export const FinanceView: React.FC = () => {
                       </span>
                     </div>
 
-                    {/* Quick action buttons: Copy PIX or WhatsApp Reminder */}
+                    {/* Quick action buttons: Open PIX QR Code Modal or WhatsApp Reminder */}
                     <div className="flex items-center justify-end gap-2 pt-1 border-t border-gray-200/40 dark:border-gray-800/60">
                       {hasPix && (
                         <button
-                          onClick={() => handleCopyPix(creditorPixKey, creditor?.displayName || 'Credor')}
+                          onClick={() => setActivePixSettlement(settlement)}
                           className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] shadow-u-xs transition-all active:scale-95"
-                          title="Copiar Chave PIX"
+                          title="Abrir QR Code PIX e Copia e Cola Oficial"
                         >
-                          {copiedPixTarget === creditorPixKey ? (
-                            <Check className="w-3 h-3 text-white" />
-                          ) : (
-                            <Copy className="w-3 h-3 text-white" />
-                          )}
-                          <span>{copiedPixTarget === creditorPixKey ? 'PIX Copiado!' : 'Copiar PIX'}</span>
+                          <QrCodeIcon className="w-3 h-3 text-white" />
+                          <span>Pagar com PIX</span>
                         </button>
                       )}
 
@@ -362,7 +716,7 @@ export const FinanceView: React.FC = () => {
                       }}
                       className={`text-xs font-semibold px-2.5 py-1 rounded-lg border transition-all ${
                         bill.isSettled
-                          ? 'bg-success-50 text-success-700 border-success-200 dark:bg-success-950/60 dark:text-success-400 dark:border-success-800'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-800'
                           : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-brand-400'
                       }`}
                     >
@@ -403,13 +757,18 @@ export const FinanceView: React.FC = () => {
             ).map((item) => {
               const spent = categoryTotals[item.cat];
               const pct = totalAllTime > 0 ? Math.round((spent / totalAllTime) * 100) : 0;
+              const catLimit = house.budget?.categoryTargets?.[item.cat];
 
               return (
                 <div key={item.cat} className="space-y-1">
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-600 dark:text-gray-400 font-medium">{item.label}</span>
                     <span className="font-bold text-gray-900 dark:text-white">
-                      {formatCurrencyBRL(spent)} <span className="text-[10px] text-gray-400 font-normal">({pct}%)</span>
+                      {formatCurrencyBRL(spent)}{' '}
+                      <span className="text-[10px] text-gray-400 font-normal">
+                        ({pct}%)
+                        {catLimit ? ` • Limite: ${formatCurrencyBRL(catLimit)}` : ''}
+                      </span>
                     </span>
                   </div>
                   <div className="h-2 w-full bg-sand-100 dark:bg-gray-800 rounded-full overflow-hidden">
@@ -449,10 +808,25 @@ export const FinanceView: React.FC = () => {
                   }`}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex flex-wrap items-center gap-1.5 mb-1">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/60 px-2 py-0.5 rounded border border-brand-200/50 dark:border-brand-800/30">
                         {expense.category}
                       </span>
+                      {expense.installment && (
+                        <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-900/40">
+                          {expense.installment.current}/{expense.installment.total}x
+                        </span>
+                      )}
+                      {expense.splitType === 'percentage' && (
+                        <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/40">
+                          % Flexível
+                        </span>
+                      )}
+                      {expense.splitType === 'exact' && (
+                        <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900/40">
+                          R$ Exato
+                        </span>
+                      )}
                       {expense.isRecurring && (
                         <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/40">
                           Recorrente
@@ -468,7 +842,7 @@ export const FinanceView: React.FC = () => {
                       {expense.description}
                     </h4>
                     <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
-                      Pago por <strong className="font-semibold text-gray-700 dark:text-gray-300">{payer?.displayName || 'Residente'}</strong> • {expense.splitAmongUserIds.length} moradores
+                      Pago por <strong className="font-semibold text-gray-700 dark:text-gray-300">{payer?.displayName || 'Residente'}</strong> • {new Date(expense.date).toLocaleDateString('pt-BR')}
                     </p>
                   </div>
 
@@ -518,7 +892,7 @@ export const FinanceView: React.FC = () => {
         isOpen={showAddSheet}
         onClose={() => setShowAddSheet(false)}
         title="Registrar Nova Despesa"
-        subtitle="Divisão justa com chave PIX e comprovante"
+        subtitle="Divisão flexível, parcelamento em até 12x e chave PIX"
       >
         <form onSubmit={handleCreateExpense} className="space-y-4">
           <div>
@@ -527,7 +901,7 @@ export const FinanceView: React.FC = () => {
             </label>
             <input
               type="text"
-              placeholder="Ex: Supermercado Mensal, Conta de Luz, Ração"
+              placeholder="Ex: Supermercado Mensal, Sofá novo, Ração"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
@@ -538,13 +912,19 @@ export const FinanceView: React.FC = () => {
           <div className="grid grid-cols-2 gap-2.5">
             <div>
               <label className="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">
-                Valor (R$)
+                Valor Total (R$)
               </label>
               <input
                 type="text"
                 placeholder="0,00"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => {
+                  setAmount(e.target.value);
+                  const parsed = parseFloat(e.target.value.replace(',', '.'));
+                  if (!isNaN(parsed) && parsed > 0 && splitType !== 'equal') {
+                    initializeEvenSplits(splitType, parsed);
+                  }
+                }}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/30 font-display font-semibold"
                 required
               />
@@ -560,28 +940,308 @@ export const FinanceView: React.FC = () => {
                 className="w-full px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/30"
               >
                 <option value="supermercado">Supermercado</option>
-                <option value="casa">Casa</option>
+                <option value="casa">Casa & Manutenção</option>
                 <option value="pet">Pet</option>
-                <option value="contas">Contas</option>
+                <option value="contas">Contas & Serviços</option>
               </select>
             </div>
           </div>
 
-          <div>
-            <label className="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">
-              Quem pagou?
-            </label>
-            <select
-              value={paidByUserId}
-              onChange={(e) => setPaidByUserId(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/30"
-            >
-              {members.map((m) => (
-                <option key={m.userId} value={m.userId}>
-                  {m.displayName}
-                </option>
-              ))}
-            </select>
+          <div className="grid grid-cols-2 gap-2.5">
+            <div>
+              <label className="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">
+                Quem pagou?
+              </label>
+              <select
+                value={paidByUserId}
+                onChange={(e) => setPaidByUserId(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+              >
+                {members.map((m) => (
+                  <option key={m.userId} value={m.userId}>
+                    {m.displayName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Parcelamento de Compras (1x a 12x) */}
+            <div>
+              <label className="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">
+                Parcelamento (Cartão)
+              </label>
+              <select
+                value={installments}
+                onChange={(e) => setInstallments(Number(e.target.value))}
+                className="w-full px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+              >
+                <option value={1}>À vista (1x)</option>
+                <option value={2}>2x vezes</option>
+                <option value={3}>3x vezes</option>
+                <option value={4}>4x vezes</option>
+                <option value={5}>5x vezes</option>
+                <option value={6}>6x vezes</option>
+                <option value={10}>10x vezes</option>
+                <option value={12}>12x vezes</option>
+              </select>
+            </div>
+          </div>
+
+          {installments > 1 && (
+            <div className="p-3 bg-purple-50/70 dark:bg-purple-950/40 rounded-xl border border-purple-200 dark:border-purple-900/50 flex items-center justify-between text-xs text-purple-800 dark:text-purple-300">
+              <span className="flex items-center gap-1.5 font-semibold">
+                <CreditCard className="w-4 h-4" />
+                Compra parcelada:
+              </span>
+              <span className="font-bold">
+                {installments}x de{' '}
+                {formatCurrencyBRL((parseFloat(amount.replace(',', '.')) || 0) / installments)}
+                /mês
+              </span>
+            </div>
+          )}
+
+          {/* Mode Selector for Split: Equal, Percentage, Exact */}
+          <div className="space-y-2 pt-1 border-t border-gray-100 dark:border-gray-800">
+            <span className="text-xs font-bold text-gray-800 dark:text-gray-200 block">
+              Como será dividida a despesa?
+            </span>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSplitType('equal');
+                }}
+                className={`py-2 px-2.5 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-1 border transition-all ${
+                  splitType === 'equal'
+                    ? 'bg-brand-50 dark:bg-brand-950/60 border-brand-500 text-brand-700 dark:text-brand-300 shadow-u-xs'
+                    : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                <span>⚖️ Igual</span>
+                <span className="text-[10px] font-normal opacity-80">50/50 automático</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSplitType('percentage');
+                  const parsed = parseFloat(amount.replace(',', '.'));
+                  initializeEvenSplits('percentage', parsed || 0);
+                }}
+                className={`py-2 px-2.5 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-1 border transition-all ${
+                  splitType === 'percentage'
+                    ? 'bg-brand-50 dark:bg-brand-950/60 border-brand-500 text-brand-700 dark:text-brand-300 shadow-u-xs'
+                    : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                <span>📊 Porcentagem</span>
+                <span className="text-[10px] font-normal opacity-80">% por renda</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSplitType('exact');
+                  const parsed = parseFloat(amount.replace(',', '.'));
+                  initializeEvenSplits('exact', parsed || 0);
+                }}
+                className={`py-2 px-2.5 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-1 border transition-all ${
+                  splitType === 'exact'
+                    ? 'bg-brand-50 dark:bg-brand-950/60 border-brand-500 text-brand-700 dark:text-brand-300 shadow-u-xs'
+                    : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                <span>💵 Valor Exato</span>
+                <span className="text-[10px] font-normal opacity-80">R$ individual</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Division Members Selection / Dynamic Fields */}
+          <div className="p-3 bg-sand-50/70 dark:bg-gray-800/60 rounded-xl border border-sand-200 dark:border-gray-700 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+                Moradores Participantes
+              </span>
+              <label className="flex items-center gap-1.5 text-[11px] font-medium text-gray-600 dark:text-gray-400 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={splitWithAll}
+                  onChange={(e) => {
+                    setSplitWithAll(e.target.checked);
+                    if (e.target.checked) {
+                      setSelectedSplitUsers(members.map((m) => m.userId));
+                    }
+                  }}
+                  className="rounded text-brand-600"
+                />
+                <span>Todos</span>
+              </label>
+            </div>
+
+            {/* If splitType === 'equal' */}
+            {splitType === 'equal' && (
+              <div className="space-y-1.5">
+                {members.map((m) => {
+                  const isChecked = splitWithAll || selectedSplitUsers.includes(m.userId);
+                  const parsedTotal = parseFloat(amount.replace(',', '.')) || 0;
+                  const count = splitWithAll ? members.length : selectedSplitUsers.length || 1;
+                  const shareEst = isChecked ? parsedTotal / count : 0;
+
+                  return (
+                    <label
+                      key={m.userId}
+                      className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200/60 dark:border-gray-800 text-xs cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          disabled={splitWithAll}
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedSplitUsers([...selectedSplitUsers, m.userId]);
+                            } else {
+                              setSelectedSplitUsers(selectedSplitUsers.filter((id) => id !== m.userId));
+                            }
+                          }}
+                          className="rounded text-brand-600"
+                        />
+                        <span className="font-semibold text-gray-800 dark:text-gray-200">{m.displayName}</span>
+                      </div>
+                      <span className="font-mono text-gray-500 dark:text-gray-400">
+                        {isChecked ? formatCurrencyBRL(shareEst) : 'Não participa'}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* If splitType === 'percentage' */}
+            {splitType === 'percentage' && (
+              <div className="space-y-2">
+                {members.map((m) => {
+                  const currentPct = customSplits[m.userId] ?? 0;
+                  const parsedTotal = parseFloat(amount.replace(',', '.')) || 0;
+                  const estimatedVal = (parsedTotal * currentPct) / 100;
+
+                  return (
+                    <div
+                      key={m.userId}
+                      className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200/60 dark:border-gray-800 text-xs gap-3"
+                    >
+                      <span className="font-semibold text-gray-800 dark:text-gray-200 min-w-[90px]">
+                        {m.displayName}
+                      </span>
+                      <div className="flex items-center gap-1.5 flex-1 justify-end">
+                        <input
+                          type="number"
+                          step="1"
+                          min="0"
+                          max="100"
+                          value={currentPct}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            setCustomSplits({
+                              ...customSplits,
+                              [m.userId]: val,
+                            });
+                          }}
+                          className="w-16 px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-right font-bold text-xs"
+                        />
+                        <span className="text-gray-500 font-semibold">%</span>
+                        <span className="text-[11px] font-mono text-brand-600 dark:text-brand-400 w-20 text-right font-bold">
+                          {formatCurrencyBRL(estimatedVal)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <div className="flex items-center justify-between pt-1 text-xs">
+                  <span className="text-gray-500 dark:text-gray-400">
+                    Soma das porcentagens:{' '}
+                    <strong
+                      className={`font-bold ${
+                        Math.abs(
+                          members.reduce((acc, m) => acc + (customSplits[m.userId] || 0), 0) - 100
+                        ) < 0.1
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : 'text-amber-600 dark:text-amber-400'
+                      }`}
+                    >
+                      {members.reduce((acc, m) => acc + (customSplits[m.userId] || 0), 0).toFixed(1)}%
+                    </strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => initializeEvenSplits('percentage', parseFloat(amount) || 0)}
+                    className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                  >
+                    Dividir igualmente
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* If splitType === 'exact' */}
+            {splitType === 'exact' && (
+              <div className="space-y-2">
+                {members.map((m) => {
+                  const currentVal = customSplits[m.userId] ?? 0;
+
+                  return (
+                    <div
+                      key={m.userId}
+                      className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200/60 dark:border-gray-800 text-xs gap-3"
+                    >
+                      <span className="font-semibold text-gray-800 dark:text-gray-200 min-w-[90px]">
+                        {m.displayName}
+                      </span>
+                      <div className="flex items-center gap-1 flex-1 justify-end">
+                        <span className="text-gray-400 font-semibold">R$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={currentVal}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            setCustomSplits({
+                              ...customSplits,
+                              [m.userId]: val,
+                            });
+                          }}
+                          className="w-24 px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-right font-bold text-xs"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <div className="flex items-center justify-between pt-1 text-xs">
+                  <span className="text-gray-500 dark:text-gray-400">
+                    Total distribuído:{' '}
+                    <strong className="font-bold text-gray-900 dark:text-white">
+                      {formatCurrencyBRL(
+                        members.reduce((acc, m) => acc + (customSplits[m.userId] || 0), 0)
+                      )}
+                    </strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      initializeEvenSplits('exact', parseFloat(amount.replace(',', '.')) || 0)
+                    }
+                    className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                  >
+                    Distribuir igualmente
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Recurring bill toggle */}
@@ -653,42 +1313,6 @@ export const FinanceView: React.FC = () => {
             )}
           </div>
 
-          <div className="pt-1">
-            <label className="flex items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-300 cursor-pointer mb-2">
-              <input
-                type="checkbox"
-                checked={splitWithAll}
-                onChange={(e) => setSplitWithAll(e.target.checked)}
-                className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500"
-              />
-              <span>Divisão padrão (entre todos os residentes)</span>
-            </label>
-
-            {!splitWithAll && (
-              <div className="space-y-1.5 pl-6">
-                {members.map((m) => (
-                  <label key={m.userId} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                    <input
-                      type="checkbox"
-                      checked={selectedSplitUsers.includes(m.userId)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedSplitUsers([...selectedSplitUsers, m.userId]);
-                        } else {
-                          setSelectedSplitUsers(
-                            selectedSplitUsers.filter((id) => id !== m.userId)
-                          );
-                        }
-                      }}
-                      className="rounded text-brand-600 focus:ring-brand-500"
-                    />
-                    <span>{m.displayName}</span>
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-
           <div className="flex justify-end gap-2.5 pt-3 border-t border-gray-100 dark:border-gray-800">
             <button
               type="button"
@@ -706,6 +1330,355 @@ export const FinanceView: React.FC = () => {
           </div>
         </form>
       </BottomSheet>
+
+      {/* PIX QR Code & BR Code Copia e Cola Modal */}
+      {activePixSettlement && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="relative max-w-sm w-full bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-5 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-gray-800">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center">
+                  <QrCodeIcon className="w-4 h-4" />
+                </div>
+                <h3 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider">
+                  Pagamento PIX Oficial
+                </h3>
+              </div>
+              <button
+                onClick={() => setActivePixSettlement(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="text-center space-y-1">
+              <span className="text-xs text-gray-500 dark:text-gray-400 block">
+                Transferência de {activePixSettlement.fromName} para:
+              </span>
+              <h4 className="text-base font-bold text-gray-900 dark:text-white">
+                {activePixSettlement.toName}
+              </h4>
+              <div className="inline-block px-3 py-1 bg-emerald-50 dark:bg-emerald-950/50 rounded-full border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-mono font-bold text-lg">
+                {formatCurrencyBRL(activePixSettlement.amount)}
+              </div>
+            </div>
+
+            {/* QR Code Container */}
+            <div className="p-4 bg-white rounded-2xl border border-gray-200 shadow-inner flex flex-col items-center justify-center">
+              {pixQrDataUrl ? (
+                <img
+                  src={pixQrDataUrl}
+                  alt="QR Code PIX Banco Central"
+                  className="w-52 h-52 object-contain"
+                />
+              ) : (
+                <div className="w-52 h-52 flex items-center justify-center text-xs text-gray-400">
+                  Carregando QR Code...
+                </div>
+              )}
+              <span className="text-[10px] text-gray-400 mt-2 font-medium">
+                Abra o app do seu banco e aponte a câmera
+              </span>
+            </div>
+
+            {/* Action buttons */}
+            <div className="space-y-2 pt-1">
+              {pixPayloadString && (
+                <button
+                  onClick={() =>
+                    handleCopyPixString(pixPayloadString, 'payload', 'Código PIX Copia e Cola')
+                  }
+                  className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-u-xs flex items-center justify-center gap-2 transition-all active:scale-95"
+                >
+                  {copiedPixType === 'payload' ? (
+                    <Check className="w-4 h-4" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                  <span>
+                    {copiedPixType === 'payload'
+                      ? 'Código Copiado com Sucesso!'
+                      : 'Copiar PIX Copia e Cola Oficial'}
+                  </span>
+                </button>
+              )}
+
+              {/* Raw Key copy button */}
+              {(() => {
+                const cred = members.find((m) => m.userId === activePixSettlement.toUserId);
+                if (!cred?.pixKey) return null;
+                return (
+                  <button
+                    onClick={() => handleCopyPixString(cred.pixKey!, 'key', 'Chave PIX')}
+                    className="w-full py-2 px-3 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold text-xs transition-colors flex items-center justify-center gap-2"
+                  >
+                    {copiedPixType === 'key' ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                    <span>
+                      {copiedPixType === 'key'
+                        ? 'Chave Copiada!'
+                        : `Copiar Apenas a Chave (${cred.pixKeyType || 'PIX'}): ${cred.pixKey}`}
+                    </span>
+                  </button>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Budget Target & Categories Adjustment Modal */}
+      {showBudgetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="relative max-w-md w-full bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-5 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-gray-800">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-emerald-600" />
+                <h3 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider">
+                  Configurar Teto Orçamentário
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowBudgetModal(false)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveBudget} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">
+                  Teto Orçamentário Global da Casa (R$/mês)
+                </label>
+                <input
+                  type="text"
+                  value={budgetMonthlyTarget}
+                  onChange={(e) => setBudgetMonthlyTarget(e.target.value)}
+                  placeholder="3800.00"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm font-bold text-gray-900 dark:text-white font-display focus:ring-2 focus:ring-emerald-500/30"
+                  required
+                />
+                <span className="text-[11px] text-gray-500 mt-1 block">
+                  Limite máximo planejado para os gastos totais somados no mês.
+                </span>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">
+                  Alerta Amarelo de Atenção (% consumido)
+                </label>
+                <input
+                  type="number"
+                  min="50"
+                  max="95"
+                  value={budgetThreshold}
+                  onChange={(e) => setBudgetThreshold(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-900 dark:text-white"
+                />
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                <span className="text-xs font-bold text-gray-800 dark:text-gray-200 block">
+                  Tetos Sugeridos por Categoria (Opcional)
+                </span>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  {(
+                    [
+                      { label: 'Supermercado', cat: 'supermercado' },
+                      { label: 'Contas & Serviços', cat: 'contas' },
+                      { label: 'Casa & Reformas', cat: 'casa' },
+                      { label: 'Cuidados Pet', cat: 'pet' },
+                    ] as const
+                  ).map((item) => (
+                    <div key={item.cat}>
+                      <span className="text-[11px] font-semibold text-gray-600 dark:text-gray-400 block mb-0.5">
+                        {item.label}
+                      </span>
+                      <input
+                        type="text"
+                        value={categoryTargetsInput[item.cat]}
+                        onChange={(e) =>
+                          setCategoryTargetsInput({
+                            ...categoryTargetsInput,
+                            [item.cat]: e.target.value,
+                          })
+                        }
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-xs font-bold text-gray-900 dark:text-white"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-3 border-t border-gray-100 dark:border-gray-800">
+                <Button variant="secondary" size="sm" onClick={() => setShowBudgetModal(false)}>
+                  Cancelar
+                </Button>
+                <Button variant="primary" size="sm" type="submit">
+                  Salvar Orçamento
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Report Modal (Fechamento Mensal & Impressão / PDF) */}
+      {showReportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="relative max-w-2xl w-full max-h-[85vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-6 space-y-5 animate-in zoom-in-95 duration-150 print:p-0 print:border-none print:shadow-none">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-800 print:hidden">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-brand-600" />
+                <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider font-display">
+                  Relatório de Fechamento Financeiro
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs font-semibold flex items-center gap-1.5"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Imprimir / PDF</span>
+                </button>
+                <button
+                  onClick={() => setShowReportModal(false)}
+                  className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Statement Content */}
+            <div className="space-y-4 text-xs text-gray-800 dark:text-gray-200">
+              <div className="border-b border-gray-200 dark:border-gray-800 pb-3">
+                <div className="flex justify-between items-baseline">
+                  <h2 className="text-lg font-black font-display text-gray-900 dark:text-white">
+                    {house.name || 'Domus Residence'}
+                  </h2>
+                  <span className="text-xs font-mono text-gray-500">
+                    Emitido em: {new Date().toLocaleDateString('pt-BR')}
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                  {house.address || 'Residência Compartilhada'} • {members.length} Moradores
+                </p>
+              </div>
+
+              {/* Summary KPIs */}
+              <div className="grid grid-cols-3 gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200/60 dark:border-gray-800">
+                <div>
+                  <span className="text-[10px] text-gray-500 block uppercase font-bold">Total Lançado</span>
+                  <span className="text-sm font-black font-display text-gray-900 dark:text-white">
+                    {formatCurrencyBRL(totalAllTime)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-gray-500 block uppercase font-bold">Total em Aberto</span>
+                  <span className="text-sm font-black font-display text-warning-600 dark:text-warning-400">
+                    {formatCurrencyBRL(totalHouseSpend)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-gray-500 block uppercase font-bold">Teto do Mês</span>
+                  <span className="text-sm font-black font-display text-emerald-600 dark:text-emerald-400">
+                    {formatCurrencyBRL(budgetStatus.monthlyTarget)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Acertos Simplificados */}
+              <div className="space-y-2">
+                <h4 className="font-bold uppercase tracking-wider text-[11px] text-gray-700 dark:text-gray-300">
+                  Compensação de Dívidas (Quem Paga Quem)
+                </h4>
+                {settlements.length === 0 ? (
+                  <p className="text-gray-500 italic">Nenhum acerto pendente. Todas as contas equilibradas.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {settlements.map((s, idx) => (
+                      <div
+                        key={idx}
+                        className="flex justify-between items-center p-2 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-200/50 dark:border-gray-800"
+                      >
+                        <span>
+                          <strong>{s.fromName}</strong> transfere para <strong>{s.toName}</strong>
+                        </span>
+                        <span className="font-bold font-mono text-warning-600 dark:text-warning-400">
+                          {formatCurrencyBRL(s.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Balanço por Morador */}
+              <div className="space-y-2">
+                <h4 className="font-bold uppercase tracking-wider text-[11px] text-gray-700 dark:text-gray-300">
+                  Balanço Líquido Individual
+                </h4>
+                <div className="space-y-1">
+                  {members.map((m) => {
+                    const mb = balances[m.userId] || { totalPaid: 0, fairShare: 0, net: 0 };
+                    return (
+                      <div
+                        key={m.userId}
+                        className="flex justify-between items-center p-2 rounded-lg border border-gray-100 dark:border-gray-800 text-xs"
+                      >
+                        <span className="font-semibold">{m.displayName}</span>
+                        <div className="flex gap-4">
+                          <span>Pago: {formatCurrencyBRL(mb.totalPaid)}</span>
+                          <span>Cota: {formatCurrencyBRL(mb.fairShare)}</span>
+                          <span
+                            className={`font-bold ${
+                              mb.net > 0 ? 'text-emerald-600' : mb.net < 0 ? 'text-rose-600' : ''
+                            }`}
+                          >
+                            {mb.net > 0 ? `+${formatCurrencyBRL(mb.net)}` : formatCurrencyBRL(mb.net)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Categorias */}
+              <div className="space-y-2">
+                <h4 className="font-bold uppercase tracking-wider text-[11px] text-gray-700 dark:text-gray-300">
+                  Despesas por Categoria
+                </h4>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {Object.entries(categoryTotals).map(([cat, total]) => (
+                    <div
+                      key={cat}
+                      className="p-2 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-200/40 dark:border-gray-800 flex justify-between"
+                    >
+                      <span className="capitalize">{cat}:</span>
+                      <span className="font-bold">{formatCurrencyBRL(total)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-gray-100 dark:border-gray-800 print:hidden">
+              <Button variant="secondary" size="sm" onClick={() => setShowReportModal(false)}>
+                Fechar Relatório
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Fullscreen Receipt Modal Viewer */}
       {viewingReceiptUrl && (

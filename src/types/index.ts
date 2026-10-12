@@ -62,6 +62,13 @@ export interface House {
   emergencyContacts?: EmergencyContact[];
   rewards?: HouseReward[];
   notes?: HouseNote[];
+  budget?: HouseBudget;
+}
+
+export interface HouseBudget {
+  monthlyTarget: number; // e.g. 3500
+  categoryTargets?: Partial<Record<ExpenseCategory, number>>;
+  alertThresholdPercent?: number; // default 80
 }
 
 export interface Room {
@@ -203,6 +210,13 @@ export interface ShoppingItem {
 }
 
 export type ExpenseCategory = 'supermercado' | 'casa' | 'pet' | 'contas';
+export type SplitType = 'equal' | 'percentage' | 'exact';
+
+export interface ExpenseInstallment {
+  current: number; // e.g. 1
+  total: number;   // e.g. 6
+  groupId: string; // id comum entre as parcelas
+}
 
 export interface Expense {
   id: string;
@@ -217,6 +231,9 @@ export interface Expense {
   isRecurring?: boolean;
   recurringDay?: number;
   notes?: string;
+  splitType?: SplitType;
+  customSplits?: Record<string, number>; // userId -> porcentagem (0-100) ou valor exato (BRL)
+  installment?: ExpenseInstallment;
 }
 
 export type EventCategory = 'rotina' | 'limpeza' | 'pet' | 'contas' | 'social' | 'manutencao';
