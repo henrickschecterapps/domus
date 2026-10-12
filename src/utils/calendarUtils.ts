@@ -1,0 +1,157 @@
+import { Chore, Expense, HouseEvent, Pet, Room } from '../types';
+
+/**
+ * Formats a timestamp into iCalendar UTC format (e.g., 20261015T120000Z)
+ */
+function formatIcsDate(timestamp: number): string {
+  const d = new Date(timestamp);
+  return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+}
+
+/**
+ * Generates an RFC 5545 iCalendar (.ics) string for a single event or a list of events.
+ */
+export function generateIcsContent(events: HouseEvent[], houseName: string = 'Domus'): string {
+  const lines: string[] = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Domus//Smart Household Management//PT',
+    `X-WR-CALNAME:${houseName} - Agenda Doméstica`,
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+  ];
+
+  events.forEach((event) => {
+    const uid = `${event.id}@domus.home`;
+    const dtstart = formatIcsDate(event.date);
+    const dtend = formatIcsDate(event.endDate || event.date + 3600 * 1000);
+    const now = formatIcsDate(Date.now());
+
+    lines.push(
+      'BEGIN:VEVENT',
+      `UID:${uid}`,
+      `DTSTAMP:${now}`,
+      `DTSTART:${dtstart}`,
+      `DTEND:${dtend}`,
+      `SUMMARY:${event.title}`,
+      `DESCRIPTION:${event.description || 'Compromisso doméstico do app Domus'}`,
+      `CATEGORIES:${event.category.toUpperCase()}`,
+      'STATUS:CONFIRMED',
+      'END:VEVENT'
+    );
+  });
+
+  lines.push('END:VCALENDAR');
+  return lines.join('\r\n');
+}
+
+/**
+ * Triggers native download or iOS/Android share sheet for the .ics file.
+ */
+export function exportEventsToCalendar(events: HouseEvent[], filename: string = 'agenda-domus.ics'): void {
+  const icsContent = generateIcsContent(events);
+  const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+
+  // If Mobile Web Share supports files, offer direct calendar open
+  if (navigator.canShare && navigator.canShare({ files: [new File([blob], filename, { type: 'text/calendar' })] })) {
+    const file = new File([blob], filename, { type: 'text/calendar' });
+    navigator.share({
+      files: [file],
+      title: 'Agenda da Casa - Domus',
+      text: 'Adicionar eventos domésticos ao calendário nativo',
+    }).catch(() => {
+      // Fallback to direct download
+      triggerDownload(blob, filename);
+    });
+    return;
+  }
+
+  triggerDownload(blob, filename);
+}
+
+function triggerDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Aggregates manual house events with automatic chores, pet schedules, and expenses.
+ */
+export function getUnifiedHouseEvents(
+  manualEvents: HouseEvent[],
+  chores: Chore[],
+  rooms: Room[],
+  pet: Pet,
+  expenses: Expense[],
+  now: number = Date.now()
+): HouseEvent[] {
+  const roomMap = new Map(rooms.map((r) => [r.id, r.name]));
+  const aggregated: HouseEvent[] = [...manualEvents];
+  const dayMs = 86_400_000;
+
+  // 1. Chores with upcoming or overdue due dates
+  chores.forEach((c) => {
+    const nextDue = c.lastCompletedAt
+      ? c.lastCompletedAt + c.frequencyDays * dayMs
+      : now; // If never completed, due today
+
+    // Only include in calendar if due within the next 30 days or overdue
+    if (nextDue <= now + 30 * dayMs) {
+      const roomName = roomMap.get(c.roomId) || 'Casa';
+      aggregated.push({
+        id: `auto_chore_${c.id}`,
+        title: `Limpeza: ${c.title}`,
+        description: `Ambiente: ${roomName} • Frequência: a cada ${c.frequencyDays} dias • Recompensa: +${c.xpReward} XP`,
+        date: Math.max(now, nextDue),
+        endDate: Math.max(now, nextDue) + 3600 * 1000,
+        category: 'limpeza',
+        createdByUserId: 'system',
+        createdByName: 'Domus Rotina',
+        source: 'chore',
+        sourceId: c.id,
+      });
+    }
+  });
+
+  // 2. Pet Medical Records (vaccines, deworming)
+  pet.medicalRecords.forEach((med) => {
+    if (med.nextDueDate) {
+      aggregated.push({
+        id: `auto_pet_med_${med.id}`,
+        title: `Bayonetta: ${med.name}`,
+        description: `Dose veterinária programada para a gata Bayonetta.`,
+        date: med.nextDueDate,
+        endDate: med.nextDueDate + 3600 * 1000,
+        category: 'pet',
+        createdByUserId: 'system',
+        createdByName: 'Bayonetta Care',
+        source: 'pet',
+        sourceId: med.id,
+      });
+    }
+  });
+
+  // 3. Pet Full Sand Change
+  const nextSandChange = pet.litterBox.lastFullChangeAt + pet.litterBox.fullChangeIntervalDays * dayMs;
+  aggregated.push({
+    id: 'auto_pet_sand_change',
+    title: 'Troca Total da Areia da Bayonetta',
+    description: 'Ciclo completo de higienização da caixa de areia sanitária.',
+    date: Math.max(now, nextSandChange),
+    endDate: Math.max(now, nextSandChange) + 3600 * 1000,
+    category: 'pet',
+    createdByUserId: 'system',
+    createdByName: 'Bayonetta Care',
+    source: 'pet',
+    sourceId: pet.id,
+  });
+
+  // 4. Sort all by date ascending
+  return aggregated.sort((a, b) => a.date - b.date);
+}

@@ -1,0 +1,827 @@
+import React, { useState, useRef } from 'react';
+import { useApp } from '../context/AppContext';
+import {
+  ShieldCheck,
+  Users,
+  Home,
+  QrCode,
+  Copy,
+  Check,
+  RefreshCw,
+  Plus,
+  Trash2,
+  Edit3,
+  Download,
+  Upload,
+  RotateCcw,
+  Sparkles,
+  Sliders,
+  FileText,
+  CheckCircle2,
+  AlertTriangle,
+  Sofa,
+  UtensilsCrossed,
+  Bed,
+  Bath,
+  Trees,
+  Tv,
+  Briefcase,
+  Flame,
+  Globe,
+  KeyRound,
+  ExternalLink,
+} from 'lucide-react';
+import { Button } from '../components/untitled/Button';
+import { Badge } from '../components/untitled/Badge';
+import { AuthHouseModal } from '../components/AuthHouseModal';
+
+// Clean vector SVG QR code representation for the invite code
+const InviteQRCode: React.FC<{ code: string }> = ({ code }) => {
+  return (
+    <div className="relative p-3.5 bg-white rounded-2xl border border-sand-200 dark:border-gray-700 shadow-u-sm inline-flex flex-col items-center">
+      <svg
+        viewBox="0 0 120 120"
+        className="w-28 h-28 text-gray-900"
+        fill="currentColor"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        {/* Corner 1 */}
+        <rect x="10" y="10" width="30" height="30" rx="4" fill="currentColor" />
+        <rect x="16" y="16" width="18" height="18" rx="2" fill="white" />
+        <rect x="20" y="20" width="10" height="10" rx="1" fill="currentColor" />
+        {/* Corner 2 */}
+        <rect x="80" y="10" width="30" height="30" rx="4" fill="currentColor" />
+        <rect x="86" y="16" width="18" height="18" rx="2" fill="white" />
+        <rect x="90" y="20" width="10" height="10" rx="1" fill="currentColor" />
+        {/* Corner 3 */}
+        <rect x="10" y="80" width="30" height="30" rx="4" fill="currentColor" />
+        <rect x="16" y="86" width="18" height="18" rx="2" fill="white" />
+        <rect x="20" y="90" width="10" height="10" rx="1" fill="currentColor" />
+        {/* Center / Data patterns */}
+        <rect x="50" y="15" width="8" height="8" rx="1" fill="currentColor" />
+        <rect x="62" y="15" width="8" height="8" rx="1" fill="currentColor" />
+        <rect x="50" y="27" width="8" height="8" rx="1" fill="currentColor" />
+        <rect x="15" y="50" width="8" height="8" rx="1" fill="currentColor" />
+        <rect x="27" y="50" width="8" height="8" rx="1" fill="currentColor" />
+        <rect x="15" y="62" width="8" height="8" rx="1" fill="currentColor" />
+        <rect x="50" y="50" width="20" height="20" rx="2" fill="#C25E34" />
+        <circle cx="60" cy="60" r="4" fill="white" />
+        <rect x="80" y="50" width="8" height="8" rx="1" fill="currentColor" />
+        <rect x="95" y="55" width="8" height="8" rx="1" fill="currentColor" />
+        <rect x="85" y="70" width="8" height="8" rx="1" fill="currentColor" />
+        <rect x="50" y="80" width="8" height="8" rx="1" fill="currentColor" />
+        <rect x="62" y="90" width="8" height="8" rx="1" fill="currentColor" />
+        <rect x="50" y="100" width="8" height="8" rx="1" fill="currentColor" />
+        <rect x="85" y="95" width="8" height="8" rx="1" fill="currentColor" />
+        <rect x="98" y="85" width="8" height="8" rx="1" fill="currentColor" />
+      </svg>
+      <span className="mt-2 text-[10px] font-mono font-bold tracking-widest text-brand-700 bg-brand-50 px-2 py-0.5 rounded">
+        {code}
+      </span>
+    </div>
+  );
+};
+
+// Available room icons
+const ROOM_ICONS: Record<string, React.ElementType> = {
+  Sofa,
+  UtensilsCrossed,
+  Bed,
+  Bath,
+  Trees,
+  Tv,
+  Briefcase,
+  Flame,
+  Home,
+};
+
+export const AdminView: React.FC = () => {
+  const {
+    house,
+    currentUser,
+    members,
+    rooms,
+    chores,
+    updateHouseDetails,
+    regenerateInviteCode,
+    addMember,
+    updateMemberRole,
+    removeMember,
+    addRoom,
+    updateRoom,
+    deleteRoom,
+    exportHouseData,
+    importHouseData,
+    resetAllToSeed,
+    showToast,
+  } = useApp();
+
+  // House identity form state
+  const [houseName, setHouseName] = useState(house.name);
+  const [houseAddress, setHouseAddress] = useState(house.address || '');
+  const [weeklyGoalXP, setWeeklyGoalXP] = useState(house.weeklyGoalXP || 500);
+  const [rulesNotes, setRulesNotes] = useState(house.rulesNotes || '');
+
+  // UI modals
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [isAddRoomOpen, setIsAddRoomOpen] = useState(false);
+  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
+
+  // Forms
+  const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberRole, setNewMemberRole] = useState<'admin' | 'member' | 'guest'>('member');
+  const [newMemberEmail, setNewMemberEmail] = useState('');
+
+  const [roomNameInput, setRoomNameInput] = useState('');
+  const [roomIconInput, setRoomIconInput] = useState('Home');
+
+  // Copy feedback
+  const [codeCopied, setCodeCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  // File upload input ref
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isAdmin = currentUser.role === 'admin';
+
+  const handleSaveHouseDetails = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateHouseDetails({
+      name: houseName.trim() || 'Minha Casa',
+      address: houseAddress.trim(),
+      weeklyGoalXP,
+      rulesNotes,
+    });
+  };
+
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(house.inviteCode);
+    setCodeCopied(true);
+    showToast('Código copiado para a área de transferência!', 'success');
+    setTimeout(() => setCodeCopied(false), 2000);
+  };
+
+  const handleCopyLink = () => {
+    const url = `${window.location.origin}/?invite=${house.inviteCode}`;
+    navigator.clipboard.writeText(url);
+    setLinkCopied(true);
+    showToast('Link de convite copiado!', 'success');
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
+
+  const handleAddMemberSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMemberName.trim()) {
+      showToast('Digite o nome do morador.', 'warning');
+      return;
+    }
+    addMember(newMemberName.trim(), newMemberRole, undefined, newMemberEmail.trim());
+    setNewMemberName('');
+    setNewMemberEmail('');
+    setNewMemberRole('member');
+    setIsAddMemberOpen(false);
+  };
+
+  const handleRoomSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!roomNameInput.trim()) {
+      showToast('Digite o nome do cômodo.', 'warning');
+      return;
+    }
+    if (editingRoomId) {
+      updateRoom(editingRoomId, roomNameInput.trim(), roomIconInput);
+      setEditingRoomId(null);
+    } else {
+      addRoom(roomNameInput.trim(), roomIconInput);
+    }
+    setRoomNameInput('');
+    setRoomIconInput('Home');
+    setIsAddRoomOpen(false);
+  };
+
+  const handleExport = () => {
+    const jsonStr = exportHouseData();
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const safeName = house.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    link.href = url;
+    link.download = `domus_${safeName}_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast('Backup exportado com sucesso!', 'success');
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        const res = importHouseData(content);
+        if (!res.success) {
+          showToast(res.message || 'Erro ao carregar arquivo.', 'error');
+        }
+      }
+    };
+    reader.readAsText(file);
+    if (e.target) e.target.value = '';
+  };
+
+  return (
+    <div className="space-y-8 pb-20 animate-in fade-in duration-200 max-w-6xl mx-auto">
+      {/* Top Banner & Context */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-6 rounded-2xl bg-gradient-to-br from-sand-100/80 via-white to-brand-50/40 dark:from-gray-900 dark:via-gray-900/90 dark:to-gray-800/60 border border-sand-200/80 dark:border-gray-800 shadow-u-xs">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand-500 text-white shadow-u-xs">
+              <ShieldCheck className="w-4 h-4" />
+            </span>
+            <h1 className="text-xl md:text-2xl font-bold font-display text-gray-900 dark:text-white tracking-tight">
+              Gestão da Casa & Acesso
+            </h1>
+            {isAdmin ? (
+              <Badge variant="brand" size="sm">Você é Administrador</Badge>
+            ) : (
+              <Badge variant="gray" size="sm">Acesso de Morador</Badge>
+            )}
+          </div>
+          <p className="text-xs md:text-sm text-gray-600 dark:text-gray-400">
+            Administre moradores, convites exclusivos, novos cômodos, rotinas e backups de dados.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setIsAuthModalOpen(true)}
+            className="flex items-center gap-1.5"
+          >
+            <KeyRound className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+            <span>Trocar / Criar Lar</span>
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Column: House Identity & Invite Code (7 cols) */}
+        <div className="lg:col-span-7 space-y-6">
+          {/* Section: Identidade do Lar */}
+          <section className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-sand-200 dark:border-gray-800 shadow-u-xs space-y-5">
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <Home className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                <h2 className="text-sm font-bold font-display text-gray-900 dark:text-white tracking-tight">
+                  Identidade do Lar
+                </h2>
+              </div>
+              <span className="text-[11px] text-gray-400 font-medium">Configurações Gerais</span>
+            </div>
+
+            <form onSubmit={handleSaveHouseDetails} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Nome da Residência
+                </label>
+                <input
+                  type="text"
+                  value={houseName}
+                  onChange={(e) => setHouseName(e.target.value)}
+                  placeholder="Ex: Apartamento 42"
+                  className="w-full px-3.5 py-2 rounded-xl bg-sand-50/50 dark:bg-gray-800/80 border border-sand-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
+                  disabled={!isAdmin}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Endereço ou Bairro (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={houseAddress}
+                  onChange={(e) => setHouseAddress(e.target.value)}
+                  placeholder="Ex: Pinheiros, São Paulo - SP"
+                  className="w-full px-3.5 py-2 rounded-xl bg-sand-50/50 dark:bg-gray-800/80 border border-sand-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
+                  disabled={!isAdmin}
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <p className="text-[11px] text-gray-400">
+                  Criado em: {new Date(house.createdAt).toLocaleDateString('pt-BR')}
+                </p>
+                {isAdmin && (
+                  <Button type="submit" variant="primary" size="sm">
+                    Salvar Alterações
+                  </Button>
+                )}
+              </div>
+            </form>
+          </section>
+
+          {/* Section: Convite & QR Code */}
+          <section className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-sand-200 dark:border-gray-800 shadow-u-xs space-y-5">
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <QrCode className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                <h2 className="text-sm font-bold font-display text-gray-900 dark:text-white tracking-tight">
+                  Código de Convite & QR Code
+                </h2>
+              </div>
+              <Badge variant="brand" size="sm">Seguro</Badge>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-6">
+              <InviteQRCode code={house.inviteCode} />
+
+              <div className="flex-1 space-y-3.5 text-center sm:text-left">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    Código de entrada exclusivo
+                  </p>
+                  <p className="text-2xl font-mono font-bold tracking-wider text-gray-900 dark:text-white mt-0.5">
+                    {house.inviteCode}
+                  </p>
+                </div>
+
+                <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                  Envie este código ou o link direto para novos moradores entrarem na mesma casa e sincronizarem rotinas.
+                </p>
+
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={handleCopyCode}
+                    className="flex items-center gap-1.5"
+                  >
+                    {codeCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{codeCopied ? 'Copiado!' : 'Copiar Código'}</span>
+                  </Button>
+
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleCopyLink}
+                    className="flex items-center gap-1.5"
+                  >
+                    {linkCopied ? <Check className="w-3.5 h-3.5" /> : <ExternalLink className="w-3.5 h-3.5" />}
+                    <span>{linkCopied ? 'Link Copiado!' : 'Copiar Link'}</span>
+                  </Button>
+
+                  {isAdmin && (
+                    <Button
+                      variant="tertiary"
+                      size="sm"
+                      onClick={() => regenerateInviteCode()}
+                      className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900"
+                      title="Gerar um novo código e invalidar o anterior"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Regenerar</span>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Section: Metas & Regras de Convivência */}
+          <section className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-sand-200 dark:border-gray-800 shadow-u-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <Sliders className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                <h2 className="text-sm font-bold font-display text-gray-900 dark:text-white tracking-tight">
+                  Metas da Casa & Regras de Convivência
+                </h2>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                    Meta Coletiva Semanal de XP
+                  </label>
+                  <span className="text-xs font-mono font-bold text-brand-600 dark:text-brand-400">
+                    {weeklyGoalXP} XP / semana
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="200"
+                  max="2000"
+                  step="50"
+                  value={weeklyGoalXP}
+                  onChange={(e) => setWeeklyGoalXP(Number(e.target.value))}
+                  className="w-full accent-brand-600"
+                  disabled={!isAdmin}
+                />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Incentiva a cooperação de todos os moradores em tarefas e cuidados diários.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Anotações & Regras do Lar
+                </label>
+                <textarea
+                  rows={3}
+                  value={rulesNotes}
+                  onChange={(e) => setRulesNotes(e.target.value)}
+                  placeholder="Ex: Horário de silêncio após 22h; Tirar lixo às terças e quintas; Alimentos na despensa superior são compartilhados."
+                  className="w-full px-3.5 py-2 rounded-xl bg-sand-50/50 dark:bg-gray-800/80 border border-sand-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all resize-none"
+                  disabled={!isAdmin}
+                />
+              </div>
+
+              {isAdmin && (
+                <div className="flex justify-end pt-1">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => updateHouseDetails({ weeklyGoalXP, rulesNotes })}
+                  >
+                    Salvar Metas
+                  </Button>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+
+        {/* Right Column: Moradores, Cômodos & Backup (5 cols) */}
+        <div className="lg:col-span-5 space-y-6">
+          {/* Section: Moradores & Permissões */}
+          <section className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-sand-200 dark:border-gray-800 shadow-u-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                <h2 className="text-sm font-bold font-display text-gray-900 dark:text-white tracking-tight">
+                  Moradores ({members.length})
+                </h2>
+              </div>
+
+              {isAdmin && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setIsAddMemberOpen(true)}
+                  className="flex items-center gap-1 text-xs py-1 px-2.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Adicionar</span>
+                </Button>
+              )}
+            </div>
+
+            <div className="space-y-2.5">
+              {members.map((member) => (
+                <div
+                  key={member.userId}
+                  className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-sand-50/40 dark:bg-gray-800/40 transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <img
+                      src={member.avatarUrl}
+                      alt={member.displayName}
+                      className="w-9 h-9 rounded-xl object-cover ring-1 ring-gray-200 dark:ring-gray-700 flex-shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-bold text-gray-900 dark:text-white truncate">
+                          {member.displayName}
+                        </p>
+                        {member.userId === currentUser.userId && (
+                          <span className="text-[10px] text-brand-600 dark:text-brand-400 font-semibold">(Você)</span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                        {member.role === 'admin' ? 'Administrador' : member.role === 'member' ? 'Residente' : 'Convidado'} • {member.totalXP} XP
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {isAdmin && (
+                      <select
+                        value={member.role}
+                        onChange={(e) => updateMemberRole(member.userId, e.target.value as any)}
+                        className="text-[11px] font-semibold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                      >
+                        <option value="admin">Admin</option>
+                        <option value="member">Morador</option>
+                        <option value="guest">Convidado</option>
+                      </select>
+                    )}
+
+                    {isAdmin && members.length > 1 && (
+                      <button
+                        onClick={() => removeMember(member.userId)}
+                        className="p-1 text-gray-400 hover:text-error-600 rounded-lg hover:bg-error-50 dark:hover:bg-error-950/40 transition-colors"
+                        title="Remover morador"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Section: Gestão de Cômodos */}
+          <section className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-sand-200 dark:border-gray-800 shadow-u-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Home className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                <h2 className="text-sm font-bold font-display text-gray-900 dark:text-white tracking-tight">
+                  Cômodos ({rooms.length})
+                </h2>
+              </div>
+
+              {isAdmin && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setEditingRoomId(null);
+                    setRoomNameInput('');
+                    setRoomIconInput('Home');
+                    setIsAddRoomOpen(true);
+                  }}
+                  className="flex items-center gap-1 text-xs py-1 px-2.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Novo Cômodo</span>
+                </Button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {rooms.map((room) => {
+                const IconComponent = (room.icon && ROOM_ICONS[room.icon]) ? ROOM_ICONS[room.icon] : Home;
+                const roomChoresCount = chores.filter((c) => c.roomId === room.id).length;
+
+                return (
+                  <div
+                    key={room.id}
+                    className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-sand-50/30 dark:bg-gray-800/40 hover:bg-white dark:hover:bg-gray-800 transition-all"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-brand-50 dark:bg-brand-950/80 text-brand-600 dark:text-brand-400 flex items-center justify-center flex-shrink-0">
+                        <IconComponent className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-gray-900 dark:text-white truncate">
+                          {room.name}
+                        </p>
+                        <span className="text-[10px] text-gray-400">
+                          {roomChoresCount} {roomChoresCount === 1 ? 'tarefa' : 'tarefas'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {isAdmin && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => {
+                            setEditingRoomId(room.id);
+                            setRoomNameInput(room.name);
+                            setRoomIconInput(room.icon || 'Home');
+                            setIsAddRoomOpen(true);
+                          }}
+                          className="p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-lg transition-colors"
+                          title="Editar cômodo"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => deleteRoom(room.id)}
+                          className="p-1 text-gray-400 hover:text-error-600 rounded-lg hover:bg-error-50 dark:hover:bg-error-950/40 transition-colors"
+                          title="Excluir cômodo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Section: Backup, Nuvem & Vercel */}
+          <section className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-sand-200 dark:border-gray-800 shadow-u-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Globe className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                <h2 className="text-sm font-bold font-display text-gray-900 dark:text-white tracking-tight">
+                  Backup & Nuvem
+                </h2>
+              </div>
+              <Badge variant="success" size="sm" dot>Vercel Ready</Badge>
+            </div>
+
+            <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+              Exporte seus dados locais para backup seguro em JSON ou restaure em qualquer navegador ou celular.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleExport}
+                className="flex-1 justify-center flex items-center gap-1.5"
+              >
+                <Download className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+                <span>Exportar Dados (.json)</span>
+              </Button>
+
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex-1 justify-center flex items-center gap-1.5"
+              >
+                <Upload className="w-3.5 h-3.5 text-success-600" />
+                <span>Restaurar (.json)</span>
+              </Button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept=".json"
+                className="hidden"
+              />
+            </div>
+
+            <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-300">
+                  Restaurar Demonstração
+                </p>
+                <p className="text-[10px] text-gray-400">
+                  Recarrega os 9 cômodos e dados padrão.
+                </p>
+              </div>
+              <Button
+                variant="tertiary"
+                size="sm"
+                onClick={resetAllToSeed}
+                className="text-error-600 hover:text-error-700 hover:bg-error-50 dark:hover:bg-error-950/30 text-xs"
+              >
+                <RotateCcw className="w-3 h-3 mr-1" />
+                <span>Resetar Seed</span>
+              </Button>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      {/* Modal: Adicionar Morador */}
+      {isAddMemberOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-6 space-y-4 animate-in zoom-in-95 duration-150">
+            <h3 className="text-base font-bold font-display text-gray-900 dark:text-white">
+              Adicionar Morador
+            </h3>
+            <form onSubmit={handleAddMemberSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Nome do Morador *
+                </label>
+                <input
+                  type="text"
+                  value={newMemberName}
+                  onChange={(e) => setNewMemberName(e.target.value)}
+                  placeholder="Ex: Beatriz, Thiago, etc."
+                  className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Email (opcional)
+                </label>
+                <input
+                  type="email"
+                  value={newMemberEmail}
+                  onChange={(e) => setNewMemberEmail(e.target.value)}
+                  placeholder="morador@exemplo.com"
+                  className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Permissão
+                </label>
+                <select
+                  value={newMemberRole}
+                  onChange={(e) => setNewMemberRole(e.target.value as any)}
+                  className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-brand-500/20 focus:outline-none font-semibold"
+                >
+                  <option value="member">Morador (Participa de tarefas, despesas e pet)</option>
+                  <option value="admin">Administrador (Controle total da casa)</option>
+                  <option value="guest">Convidado (Somente visualização)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="tertiary"
+                  size="sm"
+                  onClick={() => setIsAddMemberOpen(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" variant="primary" size="sm">
+                  Salvar Morador
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Adicionar/Editar Cômodo */}
+      {isAddRoomOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-6 space-y-4 animate-in zoom-in-95 duration-150">
+            <h3 className="text-base font-bold font-display text-gray-900 dark:text-white">
+              {editingRoomId ? 'Editar Cômodo' : 'Novo Cômodo'}
+            </h3>
+            <form onSubmit={handleRoomSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Nome do Cômodo *
+                </label>
+                <input
+                  type="text"
+                  value={roomNameInput}
+                  onChange={(e) => setRoomNameInput(e.target.value)}
+                  placeholder="Ex: Varanda Gourmet, Escritório, Lavanderia"
+                  className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Escolha um Ícone
+                </label>
+                <div className="grid grid-cols-5 gap-2">
+                  {Object.entries(ROOM_ICONS).map(([key, Icon]) => {
+                    const isSelected = roomIconInput === key;
+                    return (
+                      <button
+                        type="button"
+                        key={key}
+                        onClick={() => setRoomIconInput(key)}
+                        className={`p-2.5 rounded-xl border flex flex-col items-center justify-center transition-all ${
+                          isSelected
+                            ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/60 text-brand-600 dark:text-brand-400 shadow-u-xs'
+                            : 'border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800'
+                        }`}
+                      >
+                        <Icon className="w-5 h-5" />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="tertiary"
+                  size="sm"
+                  onClick={() => setIsAddRoomOpen(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" variant="primary" size="sm">
+                  {editingRoomId ? 'Salvar Cômodo' : 'Criar Cômodo'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Global Auth / Switch House Modal */}
+      <AuthHouseModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+      />
+    </div>
+  );
+};
