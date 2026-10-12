@@ -7,6 +7,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
     // Matches house document and its subcollections
     match /houses/{houseId} {
       // Anyone with the invite code can view the house to join

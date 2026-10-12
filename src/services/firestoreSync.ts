@@ -18,21 +18,31 @@ export interface CloudHouseData {
 }
 
 /**
+ * Recursively cleans undefined fields from objects/arrays so Firestore never rejects payloads
+ */
+export function sanitizeForFirestore<T>(data: T): T {
+  try {
+    return JSON.parse(JSON.stringify(data));
+  } catch (err) {
+    console.error('Failed to sanitize data for Firestore:', err);
+    return data;
+  }
+}
+
+/**
  * Uploads full state snapshot to Firestore under houses/{houseId}
  */
 export async function syncFullHouseToFirestore(data: Omit<CloudHouseData, 'updatedAt'>): Promise<boolean> {
-  if (!isFirebaseConfigured || !db) return false;
+  if (!isFirebaseConfigured || !db || !data?.house?.id) return false;
 
   try {
     const houseDocRef = doc(db, 'houses', data.house.id);
-    await setDoc(
-      houseDocRef,
-      {
-        ...data,
-        updatedAt: Date.now(),
-      },
-      { merge: true }
-    );
+    const cleanPayload = sanitizeForFirestore({
+      ...data,
+      updatedAt: Date.now(),
+    });
+
+    await setDoc(houseDocRef, cleanPayload, { merge: true });
     return true;
   } catch (error) {
     console.warn('Firestore sync failed, local-first mode retained:', error);

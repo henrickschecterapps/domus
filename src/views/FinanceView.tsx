@@ -264,7 +264,8 @@ export const FinanceView: React.FC = () => {
   // Handle Create Expense
   const handleCreateExpense = (e: React.FormEvent) => {
     e.preventDefault();
-    const parsedAmount = parseFloat(amount.replace(',', '.'));
+    const cleanAmountStr = amount.replace(/[^\d.,]/g, '').replace(',', '.');
+    const parsedAmount = parseFloat(cleanAmountStr);
     if (!description.trim() || isNaN(parsedAmount) || parsedAmount <= 0) {
       showToast('Insira uma descrição e valor válidos.', 'warning');
       return;
@@ -1344,11 +1345,13 @@ export const FinanceView: React.FC = () => {
               </label>
               <input
                 type="text"
+                inputMode="decimal"
                 placeholder="0,00"
                 value={amount}
                 onChange={(e) => {
                   setAmount(e.target.value);
-                  const parsed = parseFloat(e.target.value.replace(',', '.'));
+                  const clean = e.target.value.replace(/[^\d.,]/g, '').replace(',', '.');
+                  const parsed = parseFloat(clean);
                   if (!isNaN(parsed) && parsed > 0 && splitType !== 'equal') {
                     initializeEvenSplits(splitType, parsed);
                   }

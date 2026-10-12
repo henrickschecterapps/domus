@@ -4,7 +4,7 @@ import {
   onAuthStateChanged, 
   User 
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { auth, googleProvider, db, isFirebaseConfigured } from './firebase';
 
 export interface AuthResult {
@@ -99,20 +99,19 @@ export async function linkUserToHouse(
 
   try {
     const userDocRef = doc(db, 'users', userId);
-    await setDoc(
-      userDocRef,
-      {
+    const cleanUser = JSON.parse(
+      JSON.stringify({
         userId,
         houseId,
         email: email || '',
         displayName: displayName || '',
         updatedAt: Date.now(),
-      },
-      { merge: true }
+      })
     );
+    await setDoc(userDocRef, cleanUser, { merge: true });
     return true;
   } catch (err) {
-    console.warn('Falha ao associar usuário ao lar no Firestore:', err);
+    console.warn('Falha ao associar usuário ao lar no Firestore (users collection):', err);
     return false;
   }
 }
@@ -120,7 +119,7 @@ export async function linkUserToHouse(
 /**
  * Retrieve user's linked houseId from Firestore
  */
-export async function getUserHouseId(userId: string): Promise<string | null> {
+export async function getUserHouseId(userId: string, email?: string): Promise<string | null> {
   if (!isFirebaseConfigured || !db) return null;
 
   try {
@@ -128,11 +127,32 @@ export async function getUserHouseId(userId: string): Promise<string | null> {
     const snap = await getDoc(userDocRef);
     if (snap.exists()) {
       const data = snap.data() as UserHouseMapping;
-      return data.houseId || null;
+      if (data.houseId) return data.houseId;
     }
-    return null;
   } catch (err) {
-    console.warn('Falha ao buscar lar do usuário no Firestore:', err);
-    return null;
+    console.warn('Falha ao buscar lar em users collection:', err);
   }
+
+  // Fallback: check if any house has this member
+  try {
+    const housesRef = collection(db, 'houses');
+    const housesSnap = await getDocs(housesRef);
+    for (const d of housesSnap.docs) {
+      const hData = d.data();
+      if (Array.isArray(hData.members)) {
+        const isMember = hData.members.some(
+          (m: any) =>
+            m.userId === userId ||
+            (email && m.email && m.email.toLowerCase() === email.toLowerCase())
+        );
+        if (isMember) {
+          return d.id;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Fallback search in houses failed:', err);
+  }
+
+  return null;
 }

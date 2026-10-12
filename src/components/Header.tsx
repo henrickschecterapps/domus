@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Home, Copy, Check, ShieldCheck, Sun, Moon, Laptop, Users, Sparkles, User, LogOut } from 'lucide-react';
+import { Home, Copy, Check, ShieldCheck, Sun, Moon, Laptop, Users, Sparkles, User, LogOut, Smartphone } from 'lucide-react';
 import { Badge } from './untitled/Badge';
 
 import { AuthHouseModal } from './AuthHouseModal';
 import { UserProfileModal } from './UserProfileModal';
+import { InstallAppModal } from './InstallAppModal';
 import { TabType } from './Navbar';
 
 interface HeaderProps {
@@ -28,6 +29,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
 
   const copyInvite = () => {
     navigator.clipboard.writeText(house.inviteCode);
@@ -242,6 +244,17 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
                     <span>Trocar / Criar Lar</span>
                   </button>
 
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      setIsInstallModalOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-brand-700 dark:text-brand-300 bg-brand-50/70 dark:bg-brand-950/40 hover:bg-brand-100 dark:hover:bg-brand-900/60 transition-colors"
+                  >
+                    <Smartphone className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                    <span>Instalar App no Celular</span>
+                  </button>
+
                   <div className="pt-1 my-1 border-t border-gray-100 dark:border-gray-800" />
 
                   {/* Sign out button */}
@@ -270,6 +283,11 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
       <UserProfileModal
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}
+      />
+
+      <InstallAppModal
+        isOpen={isInstallModalOpen}
+        onClose={() => setIsInstallModalOpen(false)}
       />
     </header>
   );

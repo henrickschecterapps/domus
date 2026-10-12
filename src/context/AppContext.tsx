@@ -347,7 +347,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (firebaseUser) {
         // 1. Try to find user's house in Firestore
         try {
-          const remoteHouseId = await getUserHouseId(firebaseUser.uid);
+          const remoteHouseId = await getUserHouseId(firebaseUser.uid, firebaseUser.email || undefined);
           if (remoteHouseId && remoteHouseId !== house.id) {
             const cloudHouse = await fetchHouseByIdFromFirestore(remoteHouseId);
             if (cloudHouse) {
@@ -443,18 +443,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Real-time Cloud Synchronization (Firebase Firestore)
   const isCloudSyncSuppressedRef = useRef(false);
   const lastCloudSyncTimestampRef = useRef(0);
+  const lastLocalMutationTimestampRef = useRef(Date.now());
 
   // 1. Inbound: Subscribe to Cloud Updates if Firebase is configured
   useEffect(() => {
     if (!isFirebaseConfigured || !house?.id) return;
 
     const unsubscribe = subscribeToCloudHouse(house.id, (remoteData) => {
+      // Ignore cloud snapshots that are older than our latest local mutation
+      if (remoteData.updatedAt && remoteData.updatedAt <= lastLocalMutationTimestampRef.current) return;
       if (remoteData.updatedAt && remoteData.updatedAt <= lastCloudSyncTimestampRef.current) return;
 
       isCloudSyncSuppressedRef.current = true;
       if (remoteData.house) setHouse(remoteData.house);
-      if (Array.isArray(remoteData.members)) setMembers(remoteData.members);
-      if (Array.isArray(remoteData.rooms)) setRooms(remoteData.rooms);
+      if (Array.isArray(remoteData.members) && remoteData.members.length > 0) setMembers(remoteData.members);
+      if (Array.isArray(remoteData.rooms) && remoteData.rooms.length > 0) setRooms(remoteData.rooms);
       if (Array.isArray(remoteData.chores)) setChores(remoteData.chores);
       if (Array.isArray(remoteData.choreLogs)) setChoreLogs(remoteData.choreLogs);
       if (Array.isArray(remoteData.pets) && remoteData.pets.length > 0) {
@@ -463,7 +466,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       if (Array.isArray(remoteData.pantryItems)) setPantryItems(remoteData.pantryItems);
       if (Array.isArray(remoteData.shoppingItems)) setShoppingItems(remoteData.shoppingItems);
-      if (Array.isArray(remoteData.expenses)) setExpenses(remoteData.expenses);
+      if (Array.isArray(remoteData.expenses)) {
+        // If remote has expenses, or local is empty, accept remote
+        // If remote has 0 expenses but local has populated expenses, keep local and re-sync up!
+        if (remoteData.expenses.length > 0 || expenses.length === 0) {
+          setExpenses(remoteData.expenses);
+        }
+      }
       if (Array.isArray(remoteData.events)) setEvents(remoteData.events);
 
       setTimeout(() => {
@@ -476,7 +485,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [house.id]);
 
-  // 2. Outbound: Debounced auto-push to Cloud on local mutations
+  // 2. Outbound: Debounced auto-push to Cloud on local mutations (400ms for mobile responsiveness)
   useEffect(() => {
     if (!isFirebaseConfigured || isCloudSyncSuppressedRef.current) return;
 
@@ -495,9 +504,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         expenses,
         events,
       });
-    }, 2000);
+    }, 400);
 
     return () => clearTimeout(timer);
+  }, [house, members, rooms, chores, choreLogs, pets, selectedPetId, pantryItems, shoppingItems, expenses, events]);
+
+  // 3. Immediately flush pending sync if user switches apps or minimizes phone browser
+  useEffect(() => {
+    const handleFlush = () => {
+      if (document.visibilityState === 'hidden' && isFirebaseConfigured && house?.id) {
+        syncFullHouseToFirestore({
+          house,
+          members,
+          rooms,
+          chores,
+          choreLogs,
+          pets,
+          selectedPetId,
+          pantryItems,
+          shoppingItems,
+          expenses,
+          events,
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleFlush);
+    window.addEventListener('beforeunload', handleFlush);
+    return () => {
+      document.removeEventListener('visibilitychange', handleFlush);
+      window.removeEventListener('beforeunload', handleFlush);
+    };
   }, [house, members, rooms, chores, choreLogs, pets, selectedPetId, pantryItems, shoppingItems, expenses, events]);
 
   const syncToCloudNow = async (): Promise<boolean> => {
@@ -1396,7 +1433,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       }
 
-      setExpenses((prev) => [...newExpensesList, ...prev]);
+      lastLocalMutationTimestampRef.current = Date.now();
+      const updated = [...newExpensesList, ...expenses];
+      saveToStorage('expenses', updated);
+      setExpenses(updated);
+
+      if (isFirebaseConfigured && house?.id) {
+        syncFullHouseToFirestore({
+          house,
+          members,
+          rooms,
+          chores,
+          choreLogs,
+          pets,
+          selectedPetId,
+          pantryItems,
+          shoppingItems,
+          expenses: updated,
+          events,
+        });
+      }
+
       playCoinSound(soundEnabled);
       triggerHaptic('medium');
       showToast(`Compra parcelada em ${count}x registrada com sucesso!`, 'success');
@@ -1407,7 +1464,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...expense,
       id: 'exp_' + Date.now(),
     };
-    setExpenses((prev) => [newExpense, ...prev]);
+    lastLocalMutationTimestampRef.current = Date.now();
+    const updated = [newExpense, ...expenses];
+    saveToStorage('expenses', updated);
+    setExpenses(updated);
+
+    if (isFirebaseConfigured && house?.id) {
+      syncFullHouseToFirestore({
+        house,
+        members,
+        rooms,
+        chores,
+        choreLogs,
+        pets,
+        selectedPetId,
+        pantryItems,
+        shoppingItems,
+        expenses: updated,
+        events,
+      });
+    }
+
     playCoinSound(soundEnabled);
     triggerHaptic('medium');
     showToast(`Despesa "${expense.description}" registrada!`, 'success');
@@ -1442,8 +1519,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const toggleExpenseSettled = (id: string) => {
-    setExpenses((prev) =>
-      prev.map((exp) => {
+    lastLocalMutationTimestampRef.current = Date.now();
+    let updatedExpenses: Expense[] = [];
+    setExpenses((prev) => {
+      updatedExpenses = prev.map((exp) => {
         if (exp.id === id) {
           const nextState = !exp.isSettled;
           if (nextState) {
@@ -1456,20 +1535,83 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return { ...exp, isSettled: nextState };
         }
         return exp;
-      })
-    );
+      });
+      saveToStorage('expenses', updatedExpenses);
+      return updatedExpenses;
+    });
+
+    if (isFirebaseConfigured && house?.id) {
+      syncFullHouseToFirestore({
+        house,
+        members,
+        rooms,
+        chores,
+        choreLogs,
+        pets,
+        selectedPetId,
+        pantryItems,
+        shoppingItems,
+        expenses: updatedExpenses.length > 0 ? updatedExpenses : expenses,
+        events,
+      });
+    }
+
     showToast('Status da despesa atualizado', 'info');
   };
 
   const updateExpense = (id: string, updates: Partial<Expense>) => {
-    setExpenses((prev) =>
-      prev.map((exp) => (exp.id === id ? { ...exp, ...updates } : exp))
-    );
+    lastLocalMutationTimestampRef.current = Date.now();
+    let updatedExpenses: Expense[] = [];
+    setExpenses((prev) => {
+      updatedExpenses = prev.map((exp) => (exp.id === id ? { ...exp, ...updates } : exp));
+      saveToStorage('expenses', updatedExpenses);
+      return updatedExpenses;
+    });
+
+    if (isFirebaseConfigured && house?.id) {
+      syncFullHouseToFirestore({
+        house,
+        members,
+        rooms,
+        chores,
+        choreLogs,
+        pets,
+        selectedPetId,
+        pantryItems,
+        shoppingItems,
+        expenses: updatedExpenses.length > 0 ? updatedExpenses : expenses,
+        events,
+      });
+    }
+
     showToast('Despesa atualizada com sucesso', 'success');
   };
 
   const deleteExpense = (id: string) => {
-    setExpenses((prev) => prev.filter((exp) => exp.id !== id));
+    lastLocalMutationTimestampRef.current = Date.now();
+    let updatedExpenses: Expense[] = [];
+    setExpenses((prev) => {
+      updatedExpenses = prev.filter((exp) => exp.id !== id);
+      saveToStorage('expenses', updatedExpenses);
+      return updatedExpenses;
+    });
+
+    if (isFirebaseConfigured && house?.id) {
+      syncFullHouseToFirestore({
+        house,
+        members,
+        rooms,
+        chores,
+        choreLogs,
+        pets,
+        selectedPetId,
+        pantryItems,
+        shoppingItems,
+        expenses: updatedExpenses,
+        events,
+      });
+    }
+
     showToast('Despesa removida', 'info');
   };
 

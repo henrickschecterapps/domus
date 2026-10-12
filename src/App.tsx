@@ -13,6 +13,7 @@ import { AdminView } from './views/AdminView';
 import { calculateChoreUrgency } from './utils/cleaningMath';
 
 import { LoginScreen } from './components/LoginScreen';
+import { InstallAppBanner } from './components/InstallAppBanner';
 import { Loader2 } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
@@ -70,6 +71,9 @@ const MainLayout: React.FC = () => {
         urgentChoreCount={urgentChoreCount}
         urgentPetAlert={urgentPetAlert}
       />
+
+      {/* PWA Install Banner (mobile / browser) */}
+      <InstallAppBanner />
     </div>
   );
 };
