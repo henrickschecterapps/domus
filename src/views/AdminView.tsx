@@ -13,7 +13,6 @@ import {
   Edit3,
   Download,
   Upload,
-  RotateCcw,
   Sparkles,
   Sliders,
   FileText,
@@ -124,7 +123,6 @@ export const AdminView: React.FC = () => {
     deleteRoom,
     exportHouseData,
     importHouseData,
-    resetAllToSeed,
     showToast,
     isFirebaseConnected,
     syncToCloudNow,
@@ -1134,26 +1132,6 @@ VITE_FIREBASE_APP_ID=1:000000000000:web:abcdef123456`}
                 accept=".json"
                 className="hidden"
               />
-            </div>
-
-            <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
-              <div>
-                <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-300">
-                  Restaurar Demonstração
-                </p>
-                <p className="text-[10px] text-gray-400">
-                  Recarrega os 9 cômodos e dados padrão.
-                </p>
-              </div>
-              <Button
-                variant="tertiary"
-                size="sm"
-                onClick={resetAllToSeed}
-                className="text-error-600 hover:text-error-700 hover:bg-error-50 dark:hover:bg-error-950/30 text-xs"
-              >
-                <RotateCcw className="w-3 h-3 mr-1" />
-                <span>Resetar Seed</span>
-              </Button>
             </div>
           </section>
         </div>

@@ -43,7 +43,20 @@ import {
 } from '../utils/cleaningMath';
 import { fireCelebrationConfetti } from '../utils/confetti';
 import { isFirebaseConfigured } from '../services/firebase';
-import { syncFullHouseToFirestore, subscribeToCloudHouse } from '../services/firestoreSync';
+import { 
+  syncFullHouseToFirestore, 
+  subscribeToCloudHouse,
+  findHouseByInviteCodeInFirestore,
+  fetchHouseByIdFromFirestore 
+} from '../services/firestoreSync';
+import { User as FirebaseUser } from 'firebase/auth';
+import { 
+  loginWithGoogle, 
+  logoutFromGoogle, 
+  listenToAuthChanges, 
+  linkUserToHouse, 
+  getUserHouseId 
+} from '../services/authService';
 import { triggerHaptic } from '../utils/haptics';
 import { playSoftPop, playSuccessChime, playCoinSound } from '../utils/soundEffects';
 
@@ -117,6 +130,13 @@ interface AppContextType {
   events: HouseEvent[];
   addHouseEvent: (event: Omit<HouseEvent, 'id'>) => void;
   deleteHouseEvent: (id: string) => void;
+  // Authentication & Session
+  authUser: FirebaseUser | null;
+  isAuthLoading: boolean;
+  isOfflineDemo: boolean;
+  signInWithGoogle: () => Promise<boolean>;
+  logout: () => Promise<void>;
+  bypassAuthToDemo: () => void;
   // House & Admin actions
   updateHouseDetails: (details: Partial<Pick<House, 'name' | 'address' | 'weeklyGoalXP' | 'rulesNotes'>>) => void;
   regenerateInviteCode: () => string;
@@ -126,12 +146,11 @@ interface AppContextType {
   addRoom: (name: string, icon?: string) => void;
   updateRoom: (roomId: string, name: string, icon?: string) => void;
   deleteRoom: (roomId: string) => void;
-  createNewHouse: (houseName: string, adminName: string) => void;
-  joinHouseWithCode: (inviteCode: string, memberName: string) => boolean;
+  createNewHouse: (houseName: string, adminName?: string) => Promise<void> | void;
+  joinHouseWithCode: (inviteCode: string, memberName?: string) => Promise<boolean> | boolean;
   exportHouseData: () => string;
   importHouseData: (jsonContent: string) => { success: boolean; message?: string };
   resetWeeklyLeaderboard: () => void;
-  resetAllToSeed: () => void;
   // House Wi-Fi, Emergency, Rewards, Notes
   updateWifiDetails: (wifiSsid: string, wifiPassword: string) => void;
   addEmergencyContact: (contact: Omit<EmergencyContact, 'id'>) => void;
@@ -235,6 +254,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [expenses, setExpenses] = useState<Expense[]>(() => loadFromStorage('expenses', createInitialExpenses()));
   const [events, setEvents] = useState<HouseEvent[]>(() => loadFromStorage('events', createInitialEvents()));
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
+  const [authUser, setAuthUser] = useState<FirebaseUser | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+  const [isOfflineDemo, setIsOfflineDemo] = useState<boolean>(() => {
+    return loadFromStorage('isOfflineDemo', false);
+  });
   const [theme, setThemeState] = useState<'dark' | 'light' | 'system'>(() => {
     const initial = loadThemeFromStorage();
     applyThemeToDOM(initial);
@@ -299,6 +323,94 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
+
+  // Listen for Google Auth changes
+  useEffect(() => {
+    const unsub = listenToAuthChanges(async (firebaseUser) => {
+      setAuthUser(firebaseUser);
+      setIsAuthLoading(false);
+
+      if (firebaseUser) {
+        // 1. Try to find user's house in Firestore
+        try {
+          const remoteHouseId = await getUserHouseId(firebaseUser.uid);
+          if (remoteHouseId && remoteHouseId !== house.id) {
+            const cloudHouse = await fetchHouseByIdFromFirestore(remoteHouseId);
+            if (cloudHouse) {
+              setHouse(cloudHouse.house);
+              setMembers(cloudHouse.members);
+              setRooms(cloudHouse.rooms);
+              setChores(cloudHouse.chores);
+              setChoreLogs(cloudHouse.choreLogs);
+              setPets(cloudHouse.pets);
+              if (cloudHouse.selectedPetId) setSelectedPetId(cloudHouse.selectedPetId);
+              setPantryItems(cloudHouse.pantryItems);
+              setShoppingItems(cloudHouse.shoppingItems);
+              setExpenses(cloudHouse.expenses);
+              setEvents(cloudHouse.events);
+            }
+          }
+        } catch (e) {
+          console.warn('Erro ao carregar casa remota:', e);
+        }
+
+        // 2. Link with member list
+        setMembers((prevMembers) => {
+          const found = prevMembers.find(
+            (m) =>
+              m.userId === firebaseUser.uid ||
+              (firebaseUser.email && m.email && m.email.toLowerCase() === firebaseUser.email.toLowerCase())
+          );
+          if (found) {
+            setCurrentUserId(firebaseUser.uid);
+            return prevMembers.map((m) =>
+              m.userId === found.userId
+                ? {
+                    ...m,
+                    userId: firebaseUser.uid,
+                    displayName: firebaseUser.displayName || m.displayName,
+                    avatarUrl: firebaseUser.photoURL || m.avatarUrl,
+                    email: firebaseUser.email || m.email,
+                  }
+                : m
+            );
+          }
+          return prevMembers;
+        });
+      }
+    });
+
+    return () => unsub();
+  }, [house.id]);
+
+  const signInWithGoogle = async (): Promise<boolean> => {
+    const res = await loginWithGoogle();
+    if (res.success && res.user) {
+      setAuthUser(res.user);
+      setIsOfflineDemo(false);
+      saveToStorage('isOfflineDemo', false);
+      showToast(`Bem-vindo, ${res.user.displayName || 'Usuário'}!`, 'success');
+      return true;
+    }
+    if (res.error) {
+      showToast(res.error, 'error');
+    }
+    return false;
+  };
+
+  const logout = async () => {
+    await logoutFromGoogle();
+    setAuthUser(null);
+    setIsOfflineDemo(false);
+    saveToStorage('isOfflineDemo', false);
+    showToast('Você saiu da sua conta Google.', 'info');
+  };
+
+  const bypassAuthToDemo = () => {
+    setIsOfflineDemo(true);
+    saveToStorage('isOfflineDemo', true);
+    showToast('Acessando em modo demonstração offline.', 'info');
+  };
 
   // Save changes to local persistent storage
   useEffect(() => { saveToStorage('house', house); }, [house]);
@@ -1471,16 +1583,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Cômodo "${roomToDelete.name}" e tarefas removidos.`, 'info');
   };
 
-  const createNewHouse = (houseName: string, adminName: string) => {
+  const createNewHouse = async (houseName: string, adminName?: string) => {
     const trimmedHouse = houseName.trim() || 'Minha Casa';
-    const trimmedAdmin = adminName.trim() || 'Administrador';
+    const trimmedAdmin = adminName?.trim() || authUser?.displayName || 'Administrador';
+    const uid = authUser?.uid || 'user_' + Date.now();
+    const email = authUser?.email || undefined;
+    const photo = authUser?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(trimmedAdmin)}`;
+
     const adminUser: HouseMember = {
-      userId: 'user_' + Date.now(),
+      userId: uid,
       displayName: trimmedAdmin,
+      email,
       role: 'admin',
       weeklyXP: 0,
       totalXP: 0,
-      avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(trimmedAdmin)}`,
+      avatarUrl: photo,
       levelTitle: 'Administrador',
       level: 1,
     };
@@ -1503,15 +1620,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       { id: 'banheiro_' + Date.now(), name: 'Banheiro Social', order: 4, statusScore: 100, statusLevel: 'clean', lastCleanedAt: Date.now(), icon: 'Bath' },
     ];
 
+    const initialChoresList: Chore[] = [
+      { id: 'chore_' + Date.now() + '_1', roomId: initialRoomsList[0].id, title: 'Organizar sala e tirar pó', frequencyDays: 3, lastCompletedAt: Date.now(), lastCompletedBy: { userId: adminUser.userId, displayName: adminUser.displayName }, assignedTo: null, xpReward: 25, urgencyScore: 0, statusLevel: 'clean' },
+      { id: 'chore_' + Date.now() + '_2', roomId: initialRoomsList[1].id, title: 'Lavar louça e limpar bancada', frequencyDays: 1, lastCompletedAt: Date.now(), lastCompletedBy: { userId: adminUser.userId, displayName: adminUser.displayName }, assignedTo: null, xpReward: 15, urgencyScore: 0, statusLevel: 'clean' },
+      { id: 'chore_' + Date.now() + '_3', roomId: initialRoomsList[3].id, title: 'Higienizar banheiro e box', frequencyDays: 4, lastCompletedAt: Date.now(), lastCompletedBy: { userId: adminUser.userId, displayName: adminUser.displayName }, assignedTo: null, xpReward: 35, urgencyScore: 0, statusLevel: 'clean' },
+    ];
+
     setHouse(newHouse);
     setMembers([adminUser]);
     setCurrentUserId(adminUser.userId);
     setRooms(initialRoomsList);
-    setChores([
-      { id: 'chore_' + Date.now() + '_1', roomId: initialRoomsList[0].id, title: 'Organizar sala e tirar pó', frequencyDays: 3, lastCompletedAt: Date.now(), lastCompletedBy: { userId: adminUser.userId, displayName: adminUser.displayName }, assignedTo: null, xpReward: 25, urgencyScore: 0, statusLevel: 'clean' },
-      { id: 'chore_' + Date.now() + '_2', roomId: initialRoomsList[1].id, title: 'Lavar louça e limpar bancada', frequencyDays: 1, lastCompletedAt: Date.now(), lastCompletedBy: { userId: adminUser.userId, displayName: adminUser.displayName }, assignedTo: null, xpReward: 15, urgencyScore: 0, statusLevel: 'clean' },
-      { id: 'chore_' + Date.now() + '_3', roomId: initialRoomsList[3].id, title: 'Higienizar banheiro e box', frequencyDays: 4, lastCompletedAt: Date.now(), lastCompletedBy: { userId: adminUser.userId, displayName: adminUser.displayName }, assignedTo: null, xpReward: 35, urgencyScore: 0, statusLevel: 'clean' },
-    ]);
+    setChores(initialChoresList);
     setChoreLogs([]);
     const freshPets = createInitialPets();
     setPets(freshPets);
@@ -1522,26 +1641,106 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setEvents([]);
     fireCelebrationConfetti();
     showToast(`Lar "${trimmedHouse}" criado com sucesso!`, 'success');
+
+    // Link user to house in Firestore
+    if (authUser) {
+      await linkUserToHouse(authUser.uid, newHouse.id, authUser.email || undefined, trimmedAdmin);
+    }
+    await syncFullHouseToFirestore({
+      house: newHouse,
+      members: [adminUser],
+      rooms: initialRoomsList,
+      chores: initialChoresList,
+      choreLogs: [],
+      pets: freshPets,
+      selectedPetId: freshPets[0].id,
+      pantryItems: [],
+      shoppingItems: [],
+      expenses: [],
+      events: [],
+    });
   };
 
-  const joinHouseWithCode = (inviteCode: string, memberName: string): boolean => {
+  const joinHouseWithCode = async (inviteCode: string, memberName?: string): Promise<boolean> => {
     const cleanCode = inviteCode.trim().toUpperCase();
-    const cleanName = memberName.trim() || 'Novo Morador';
-    
+    const displayName = memberName?.trim() || authUser?.displayName || 'Novo Morador';
+    const uid = authUser?.uid || 'user_' + Date.now();
+    const email = authUser?.email || undefined;
+    const avatarUrl = authUser?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(displayName)}`;
+
+    // 1. Try local house first
     if (cleanCode === house.inviteCode.toUpperCase()) {
-      const existing = members.find((m) => m.displayName.toLowerCase() === cleanName.toLowerCase());
+      const existing = members.find((m) => m.userId === uid || (email && m.email === email));
       if (existing) {
         setCurrentUserId(existing.userId);
         showToast(`Bem-vindo de volta, ${existing.displayName}!`, 'success');
+        if (authUser) linkUserToHouse(authUser.uid, house.id, email, displayName);
         return true;
       }
-      addMember(cleanName, 'member');
+      const newMember: HouseMember = {
+        userId: uid,
+        displayName,
+        email,
+        avatarUrl,
+        role: 'member',
+        weeklyXP: 0,
+        totalXP: 0,
+        levelTitle: 'Residente',
+        level: 1,
+      };
+      setMembers((prev) => [...prev, newMember]);
+      setHouse((prev) => ({ ...prev, members: [...prev.members, newMember] }));
+      setCurrentUserId(uid);
+      if (authUser) linkUserToHouse(authUser.uid, house.id, email, displayName);
+      showToast(`Você ingressou em "${house.name}"!`, 'success');
       return true;
     }
 
-    showToast(`Código ${cleanCode} verificado! Conectando à residência...`, 'success');
-    addMember(cleanName, 'member');
-    return true;
+    // 2. Query Firestore by invite code
+    try {
+      const remote = await findHouseByInviteCodeInFirestore(cleanCode);
+      if (remote) {
+        const existingInRemote = remote.members.find((m) => m.userId === uid || (email && m.email === email));
+        let updatedMembers = [...remote.members];
+        if (!existingInRemote) {
+          const newMember: HouseMember = {
+            userId: uid,
+            displayName,
+            email,
+            avatarUrl,
+            role: 'member',
+            weeklyXP: 0,
+            totalXP: 0,
+            levelTitle: 'Residente',
+            level: 1,
+          };
+          updatedMembers.push(newMember);
+        }
+        setHouse(remote.house);
+        setMembers(updatedMembers);
+        setCurrentUserId(uid);
+        setRooms(remote.rooms);
+        setChores(remote.chores);
+        setChoreLogs(remote.choreLogs);
+        setPets(remote.pets);
+        if (remote.selectedPetId) setSelectedPetId(remote.selectedPetId);
+        setPantryItems(remote.pantryItems);
+        setShoppingItems(remote.shoppingItems);
+        setExpenses(remote.expenses);
+        setEvents(remote.events);
+
+        if (authUser) {
+          await linkUserToHouse(authUser.uid, remote.house.id, email, displayName);
+        }
+        showToast(`Conectado à residência "${remote.house.name}"!`, 'success');
+        return true;
+      }
+    } catch (e) {
+      console.warn('Erro ao buscar casa remota:', e);
+    }
+
+    showToast(`Código de convite ${cleanCode} não encontrado.`, 'error');
+    return false;
   };
 
   const exportHouseData = (): string => {
@@ -1596,23 +1795,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {
       return { success: false, message: 'Erro ao interpretar o arquivo JSON.' };
     }
-  };
-
-  const resetAllToSeed = () => {
-    setHouse(DEFAULT_HOUSE);
-    setMembers(DEFAULT_MEMBERS);
-    setCurrentUserId('user_1');
-    setRooms(createInitialRooms());
-    setChores(createInitialChores());
-    setChoreLogs([]);
-    const initialPetsList = createInitialPets();
-    setPets(initialPetsList);
-    setSelectedPetId(initialPetsList[0].id);
-    setPantryItems(createInitialPantry());
-    setShoppingItems(createInitialShoppingList());
-    setExpenses(createInitialExpenses());
-    setEvents(createInitialEvents());
-    showToast('Dados restaurados para o padrão inicial', 'success');
   };
 
   const updateMemberProfile = (userId: string, data: Partial<HouseMember>) => {
@@ -1795,6 +1977,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         events,
         addHouseEvent,
         deleteHouseEvent,
+        authUser,
+        isAuthLoading,
+        isOfflineDemo,
+        signInWithGoogle,
+        logout,
+        bypassAuthToDemo,
         updateHouseDetails,
         regenerateInviteCode,
         addMember,
@@ -1808,7 +1996,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         exportHouseData,
         importHouseData,
         resetWeeklyLeaderboard,
-        resetAllToSeed,
         updateWifiDetails,
         addEmergencyContact,
         deleteEmergencyContact,

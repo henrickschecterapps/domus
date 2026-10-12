@@ -12,6 +12,9 @@ import { FinanceView } from './views/FinanceView';
 import { AdminView } from './views/AdminView';
 import { calculateChoreUrgency } from './utils/cleaningMath';
 
+import { LoginScreen } from './components/LoginScreen';
+import { Loader2 } from 'lucide-react';
+
 const MainLayout: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const { chores, pets } = useApp();
@@ -71,10 +74,40 @@ const MainLayout: React.FC = () => {
   );
 };
 
+const AppContent: React.FC = () => {
+  const { authUser, isAuthLoading, isOfflineDemo, members } = useApp();
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-sand-50 dark:bg-gray-950 flex flex-col items-center justify-center p-4">
+        <div className="w-12 h-12 rounded-2xl bg-brand-500 text-white flex items-center justify-center shadow-u-md animate-pulse mb-3">
+          <Loader2 className="w-6 h-6 animate-spin" />
+        </div>
+        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Carregando Domus...</p>
+      </div>
+    );
+  }
+
+  const isUserAssociatedWithHouse = Boolean(
+    authUser &&
+      members.some(
+        (m) =>
+          m.userId === authUser.uid ||
+          (authUser.email && m.email && m.email.toLowerCase() === authUser.email.toLowerCase())
+      )
+  );
+
+  if (!isOfflineDemo && (!authUser || !isUserAssociatedWithHouse)) {
+    return <LoginScreen />;
+  }
+
+  return <MainLayout />;
+};
+
 export function App() {
   return (
     <AppProvider>
-      <MainLayout />
+      <AppContent />
     </AppProvider>
   );
 }

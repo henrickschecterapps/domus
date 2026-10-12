@@ -1,5 +1,5 @@
 import { db, isFirebaseConfigured } from './firebase';
-import { doc, setDoc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
 import { House, HouseMember, Room, Chore, ChoreLog, Pet, PantryItem, ShoppingItem, Expense, HouseEvent } from '../types';
 
 export interface CloudHouseData {
@@ -87,6 +87,25 @@ export async function findHouseByInviteCodeInFirestore(inviteCode: string): Prom
     return null;
   } catch (error) {
     console.warn('Firestore query by invite code failed:', error);
+    return null;
+  }
+}
+
+/**
+ * Loads a house directly by houseId from Firestore
+ */
+export async function fetchHouseByIdFromFirestore(houseId: string): Promise<CloudHouseData | null> {
+  if (!isFirebaseConfigured || !db || !houseId) return null;
+
+  try {
+    const houseDocRef = doc(db, 'houses', houseId);
+    const snap = await getDoc(houseDocRef);
+    if (snap.exists()) {
+      return snap.data() as CloudHouseData;
+    }
+    return null;
+  } catch (error) {
+    console.warn('Firestore fetch by houseId failed:', error);
     return null;
   }
 }

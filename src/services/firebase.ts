@@ -5,16 +5,21 @@ import {
   persistentLocalCache, 
   persistentMultipleTabManager 
 } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { GoogleAuthProvider, getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyCHR7AhHUc0iUb1iDAHzn_tazv9tbHNU-I',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'domus-db812.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'domus-db812',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'domus-db812.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '647692589493',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:647692589493:web:dce94f22d461cf5f18a1fc',
 };
+
+export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account',
+});
 
 export const isFirebaseConfigured = Boolean(
   firebaseConfig.apiKey &&
