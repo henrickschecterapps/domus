@@ -28,3 +28,4 @@ Thumbs.db
 
 # Agent / Tool internal directories
 .gemini
+.vite
