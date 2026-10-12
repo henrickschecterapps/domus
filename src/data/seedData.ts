@@ -533,6 +533,22 @@ export function createInitialPets(): Pet[] {
         { date: now - 30 * day, weightKg: 4.2 },
         { date: now - 5 * day, weightKg: 4.3 },
       ],
+      dutySchedule: {
+        weeklyAssignment: {
+          0: 'user_1', // Dom: Henrique
+          1: 'user_1', // Seg: Henrique
+          2: 'user_2', // Ter: Mariana
+          3: 'user_1', // Qua: Henrique
+          4: 'user_2', // Qui: Mariana
+          5: 'user_1', // Sex: Henrique
+          6: 'user_2', // Sáb: Mariana
+        },
+      },
+      reminders: [
+        { id: 'rem_b1', petId: 'pet_bayonetta', title: 'Café da Manhã & Água Fresca', time: '08:00', isEnabled: true, category: 'food' },
+        { id: 'rem_b2', petId: 'pet_bayonetta', title: 'Peneirar Caixa de Areia', time: '13:00', isEnabled: true, category: 'litter' },
+        { id: 'rem_b3', petId: 'pet_bayonetta', title: 'Jantar & Sachê Gourmet', time: '19:30', isEnabled: true, category: 'food' },
+      ],
     },
     {
       id: 'pet_apollo',
@@ -606,6 +622,22 @@ export function createInitialPets(): Pet[] {
         { date: now - 90 * day, weightKg: 30.2 },
         { date: now - 30 * day, weightKg: 31.0 },
         { date: now - 2 * day, weightKg: 31.5 },
+      ],
+      dutySchedule: {
+        weeklyAssignment: {
+          0: 'user_2', // Dom: Mariana
+          1: 'user_2', // Seg: Mariana
+          2: 'user_1', // Ter: Henrique
+          3: 'user_2', // Qua: Mariana
+          4: 'user_1', // Qui: Henrique
+          5: 'user_2', // Sex: Mariana
+          6: 'user_1', // Sáb: Henrique
+        },
+      },
+      reminders: [
+        { id: 'rem_a1', petId: 'pet_apollo', title: 'Passeio Matinal & Ração', time: '07:30', isEnabled: true, category: 'walk' },
+        { id: 'rem_a2', petId: 'pet_apollo', title: 'Troca de Água & Brincadeira', time: '14:00', isEnabled: true, category: 'hygiene' },
+        { id: 'rem_a3', petId: 'pet_apollo', title: 'Passeio Noturno & Jantar', time: '19:00', isEnabled: true, category: 'walk' },
       ],
     },
   ];

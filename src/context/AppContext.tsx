@@ -17,6 +17,10 @@ import {
   HouseReward,
   HouseNote,
   PetWeightRecord,
+  PetDutySchedule,
+  PetDutyPeriod,
+  PetDailyDuty,
+  PetCustomReminder,
 } from '../types';
 import {
   DEFAULT_HOUSE,
@@ -88,6 +92,12 @@ interface AppContextType {
   addPetFoodToShopping: (itemType: 'dry' | 'sachet' | 'litter', petId?: string) => void;
   addPetMedicalRecord: (record: Omit<MedicalRecord, 'id'>, petId?: string, expenseAmount?: number) => void;
   logPetCareAction: (petId: string, actionType: PetCareLog['actionType'], title: string, xpReward: number) => void;
+  updatePetDutySchedule: (petId: string, schedule: Partial<PetDutySchedule>) => void;
+  overrideTodayPetDuty: (petId: string, userId: string) => void;
+  completePetDailyDuty: (petId: string, period: PetDutyPeriod, title: string, xpReward: number) => void;
+  addPetReminder: (petId: string, reminder: Omit<PetCustomReminder, 'id'>, syncToCalendar?: boolean) => void;
+  togglePetReminder: (petId: string, reminderId: string) => void;
+  deletePetReminder: (petId: string, reminderId: string) => void;
   // Pantry actions
   addPantryItem: (item: Omit<PantryItem, 'id'>) => void;
   updatePantryQuantity: (id: string, newQuantity: number) => void;
@@ -875,6 +885,216 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Registro médico veterinário salvo!', 'success');
   };
 
+  const updatePetDutySchedule = (petId: string, scheduleUpdate: Partial<PetDutySchedule>) => {
+    setPets((prev) =>
+      prev.map((p) => {
+        if (p.id === petId) {
+          const currentSchedule = p.dutySchedule || {
+            weeklyAssignment: {
+              0: 'user_1',
+              1: 'user_1',
+              2: 'user_2',
+              3: 'user_1',
+              4: 'user_2',
+              5: 'user_1',
+              6: 'user_2',
+            },
+          };
+          return {
+            ...p,
+            dutySchedule: {
+              ...currentSchedule,
+              ...scheduleUpdate,
+              weeklyAssignment: {
+                ...currentSchedule.weeklyAssignment,
+                ...(scheduleUpdate.weeklyAssignment || {}),
+              },
+            },
+          };
+        }
+        return p;
+      })
+    );
+    showToast('Escala de tutores atualizada com sucesso!', 'success');
+  };
+
+  const overrideTodayPetDuty = (petId: string, userId: string) => {
+    const targetUser = members.find((m) => m.userId === userId) || currentUser;
+    const targetPet = pets.find((p) => p.id === petId) || pet;
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    setPets((prev) =>
+      prev.map((p) => {
+        if (p.id === petId) {
+          const currentSchedule = p.dutySchedule || {
+            weeklyAssignment: {
+              0: 'user_1',
+              1: 'user_1',
+              2: 'user_2',
+              3: 'user_1',
+              4: 'user_2',
+              5: 'user_1',
+              6: 'user_2',
+            },
+          };
+          return {
+            ...p,
+            dutySchedule: {
+              ...currentSchedule,
+              todayOverrideUserId: userId,
+              lastOverrideDate: todayStr,
+            },
+          };
+        }
+        return p;
+      })
+    );
+
+    triggerHaptic('medium');
+    playSuccessChime(soundEnabled);
+    showToast(`${targetUser.displayName} assumiu o plantão de ${targetPet.name} hoje!`, 'success');
+  };
+
+  const completePetDailyDuty = (petId: string, period: PetDutyPeriod, title: string, xpReward: number) => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const targetPet = pets.find((p) => p.id === petId) || pet;
+    const dutyId = `duty_${petId}_${todayStr}_${period}`;
+
+    const newDuty: PetDailyDuty = {
+      id: dutyId,
+      petId,
+      period,
+      title,
+      dateStr: todayStr,
+      completedAt: Date.now(),
+      completedByUserId: currentUser.userId,
+      completedByName: currentUser.displayName,
+      xpReward,
+    };
+
+    setPets((prev) =>
+      prev.map((p) => {
+        if (p.id === petId) {
+          const currentDuties = p.duties || [];
+          const filtered = currentDuties.filter((d) => !(d.dateStr === todayStr && d.period === period));
+          return {
+            ...p,
+            duties: [newDuty, ...filtered],
+          };
+        }
+        return p;
+      })
+    );
+
+    // Award XP to currentUser
+    setMembers((prev) =>
+      prev.map((m) => {
+        if (m.userId === currentUser.userId) {
+          return {
+            ...m,
+            weeklyXP: m.weeklyXP + xpReward,
+            totalXP: m.totalXP + xpReward,
+          };
+        }
+        return m;
+      })
+    );
+
+    // Log in Pet Care Feed
+    logPetCareAction(
+      petId,
+      period === 'morning' ? 'feed' : period === 'afternoon' ? 'walk' : 'scoop',
+      `${title} (${targetPet.name})`,
+      xpReward
+    );
+
+    triggerHaptic('success');
+    playCoinSound(soundEnabled);
+    fireCelebrationConfetti();
+    showToast(`Turno "${title}" concluído! +${xpReward} XP`, 'success');
+  };
+
+  const addPetReminder = (
+    petId: string,
+    reminder: Omit<PetCustomReminder, 'id'>,
+    syncToCalendar: boolean = true
+  ) => {
+    const newId = 'rem_' + Date.now();
+    const newReminder: PetCustomReminder = {
+      ...reminder,
+      id: newId,
+      petId,
+    };
+
+    setPets((prev) =>
+      prev.map((p) => {
+        if (p.id === petId) {
+          return {
+            ...p,
+            reminders: [...(p.reminders || []), newReminder],
+          };
+        }
+        return p;
+      })
+    );
+
+    if (syncToCalendar) {
+      const [hours, minutes] = reminder.time.split(':').map(Number);
+      const eventDate = new Date();
+      eventDate.setHours(hours || 8, minutes || 0, 0, 0);
+
+      const targetPet = pets.find((p) => p.id === petId) || pet;
+      const newEvent: HouseEvent = {
+        id: 'event_pet_' + Date.now(),
+        title: `🐾 ${reminder.title} (${targetPet.name})`,
+        description: `Lembrete diário programado às ${reminder.time}`,
+        date: eventDate.getTime(),
+        category: 'pet',
+        createdByUserId: currentUser.userId,
+        createdByName: currentUser.displayName,
+        assignedToUserId: reminder.assignedToUserId,
+        source: 'pet',
+        sourceId: newId,
+      };
+      setEvents((prev) => [...prev, newEvent]);
+    }
+
+    showToast(`Lembrete "${reminder.title}" adicionado!`, 'success');
+  };
+
+  const togglePetReminder = (petId: string, reminderId: string) => {
+    setPets((prev) =>
+      prev.map((p) => {
+        if (p.id === petId) {
+          return {
+            ...p,
+            reminders: (p.reminders || []).map((r) =>
+              r.id === reminderId ? { ...r, isEnabled: !r.isEnabled } : r
+            ),
+          };
+        }
+        return p;
+      })
+    );
+    showToast('Lembrete atualizado', 'info');
+  };
+
+  const deletePetReminder = (petId: string, reminderId: string) => {
+    setPets((prev) =>
+      prev.map((p) => {
+        if (p.id === petId) {
+          return {
+            ...p,
+            reminders: (p.reminders || []).filter((r) => r.id !== reminderId),
+          };
+        }
+        return p;
+      })
+    );
+    setEvents((prev) => prev.filter((e) => e.sourceId !== reminderId));
+    showToast('Lembrete removido', 'info');
+  };
+
   // Pantry Actions
   const addPantryItem = (item: Omit<PantryItem, 'id'>) => {
     const newItem: PantryItem = {
@@ -1554,6 +1774,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addPetFoodToShopping,
         addPetMedicalRecord,
         logPetCareAction,
+        updatePetDutySchedule,
+        overrideTodayPetDuty,
+        completePetDailyDuty,
+        addPetReminder,
+        togglePetReminder,
+        deletePetReminder,
         addPantryItem,
         updatePantryQuantity,
         deletePantryItem,

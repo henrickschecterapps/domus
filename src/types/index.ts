@@ -137,6 +137,41 @@ export interface PetWeightRecord {
   weightKg: number;
 }
 
+export type DayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6; // 0=Domingo, 1=Segunda, ..., 6=Sábado
+
+export interface PetDutySchedule {
+  weeklyAssignment: Record<DayOfWeek, string>; // Day -> userId
+  todayOverrideUserId?: string;
+  lastOverrideDate?: string; // "YYYY-MM-DD"
+}
+
+export type PetDutyPeriod = 'morning' | 'afternoon' | 'night';
+
+export interface PetDailyDuty {
+  id: string;
+  petId: string;
+  period: PetDutyPeriod;
+  title: string;
+  description?: string;
+  dateStr: string; // "YYYY-MM-DD"
+  completedAt?: number;
+  completedByUserId?: string;
+  completedByName?: string;
+  xpReward: number;
+  targetTime?: string; // ex: "08:00"
+}
+
+export interface PetCustomReminder {
+  id: string;
+  petId: string;
+  title: string;
+  time: string; // "HH:MM"
+  assignedToUserId?: string;
+  daysOfWeek?: DayOfWeek[];
+  isEnabled: boolean;
+  category: 'food' | 'walk' | 'litter' | 'med' | 'hygiene';
+}
+
 export interface Pet {
   id: string;
   name: string; // e.g. "Bayonetta", "Apollo"
@@ -177,6 +212,9 @@ export interface Pet {
     address?: string;
   };
   weightHistory?: PetWeightRecord[];
+  dutySchedule?: PetDutySchedule;
+  duties?: PetDailyDuty[];
+  reminders?: PetCustomReminder[];
 }
 
 export type PantryCategory = 'mercearia' | 'limpeza' | 'pet' | 'hortifruti' | 'refrigerados';

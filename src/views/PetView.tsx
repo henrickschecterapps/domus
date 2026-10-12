@@ -18,16 +18,21 @@ import {
   CheckCircle2,
   Trash2,
   Edit3,
-  ChevronRight,
-  TrendingUp,
   Camera,
   Phone,
   MessageCircle,
   Scale,
   MapPin,
   X,
+  Sun,
+  Moon,
+  Check,
+  Repeat,
+  Bell,
+  Award,
+  Share2,
 } from 'lucide-react';
-import { MedicalRecord, Pet } from '../types';
+import { DayOfWeek, MedicalRecord, Pet, PetCustomReminder, PetDutyPeriod } from '../types';
 import { Button } from '../components/untitled/Button';
 import { Badge } from '../components/untitled/Badge';
 
@@ -41,11 +46,22 @@ const PHOTO_PRESETS = [
   { label: 'Vira-lata Caramelo', url: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400&auto=format&fit=crop&q=80' },
 ];
 
+const DAYS_OF_WEEK: { id: DayOfWeek; short: string; label: string }[] = [
+  { id: 0, short: 'Dom', label: 'Domingo' },
+  { id: 1, short: 'Seg', label: 'Segunda-feira' },
+  { id: 2, short: 'Ter', label: 'Terça-feira' },
+  { id: 3, short: 'Qua', label: 'Quarta-feira' },
+  { id: 4, short: 'Qui', label: 'Quinta-feira' },
+  { id: 5, short: 'Sex', label: 'Sexta-feira' },
+  { id: 6, short: 'Sáb', label: 'Sábado' },
+];
+
 export const PetView: React.FC = () => {
   const {
     pets,
     pet,
-    selectedPetId,
+    members,
+    currentUser,
     setSelectedPetId,
     addPet,
     updatePet,
@@ -60,6 +76,12 @@ export const PetView: React.FC = () => {
     updatePetStock,
     addPetFoodToShopping,
     addPetMedicalRecord,
+    updatePetDutySchedule,
+    overrideTodayPetDuty,
+    completePetDailyDuty,
+    addPetReminder,
+    togglePetReminder,
+    deletePetReminder,
     showToast,
   } = useApp();
 
@@ -68,6 +90,8 @@ export const PetView: React.FC = () => {
   const [showPetModal, setShowPetModal] = useState(false);
   const [editingPet, setEditingPet] = useState<Pet | null>(null);
   const [showVetModal, setShowVetModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showReminderModal, setShowReminderModal] = useState(false);
 
   // File ref for real pet photo upload
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -96,12 +120,55 @@ export const PetView: React.FC = () => {
   // Weight form state
   const [newWeightInput, setNewWeightInput] = useState('');
 
+  // Schedule modal state
+  const [scheduleAssignments, setScheduleAssignments] = useState<Record<DayOfWeek, string>>(() => {
+    return (
+      pet.dutySchedule?.weeklyAssignment || {
+        0: 'user_1',
+        1: 'user_1',
+        2: 'user_2',
+        3: 'user_1',
+        4: 'user_2',
+        5: 'user_1',
+        6: 'user_2',
+      }
+    );
+  });
+
+  // Reminder form state
+  const [remTitle, setRemTitle] = useState('');
+  const [remTime, setRemTime] = useState('08:00');
+  const [remCategory, setRemCategory] = useState<PetCustomReminder['category']>('food');
+  const [remSyncCalendar, setRemSyncCalendar] = useState(true);
+
   const now = Date.now();
   const dayMs = 86_400_000;
+  const todayDate = new Date();
+  const todayDayOfWeek = todayDate.getDay() as DayOfWeek;
+  const todayStr = todayDate.toISOString().split('T')[0];
 
   // Active pet helpers
   const isCat = pet.species === 'cat';
   const isDog = pet.species === 'dog';
+
+  // Current Day Duty Assigned Tutor
+  const isOverrideToday =
+    pet.dutySchedule?.todayOverrideUserId &&
+    pet.dutySchedule?.lastOverrideDate === todayStr;
+
+  const currentTutorId = isOverrideToday
+    ? pet.dutySchedule!.todayOverrideUserId!
+    : pet.dutySchedule?.weeklyAssignment?.[todayDayOfWeek] || members[0]?.userId || 'user_1';
+
+  const currentTutor = members.find((m) => m.userId === currentTutorId) || members[0];
+  const isCurrentUserTutor = currentTutor?.userId === currentUser.userId;
+
+  // Daily duties for today
+  const todayDuties = (pet.duties || []).filter((d) => d.dateStr === todayStr);
+  const morningDone = todayDuties.find((d) => d.period === 'morning');
+  const afternoonDone = todayDuties.find((d) => d.period === 'afternoon');
+  const nightDone = todayDuties.find((d) => d.period === 'night');
+  const completedDutiesCount = [morningDone, afternoonDone, nightDone].filter(Boolean).length;
 
   // Litter box metrics (for cats)
   const hoursSinceScoop = pet.litterBox
@@ -143,6 +210,7 @@ export const PetView: React.FC = () => {
   const sachetCount = pet.feeding?.sachetStockCount ?? 0;
   const isSachetsLow = isCat && sachetCount <= 3;
 
+  // Pet modal handlers
   const handleOpenNewPetModal = () => {
     setEditingPet(null);
     setFormName('');
@@ -246,6 +314,35 @@ export const PetView: React.FC = () => {
             : undefined,
         medicalRecords: [],
         careLogs: [],
+        dutySchedule: {
+          weeklyAssignment: {
+            0: members[0]?.userId || 'user_1',
+            1: members[0]?.userId || 'user_1',
+            2: members[1]?.userId || 'user_2',
+            3: members[0]?.userId || 'user_1',
+            4: members[1]?.userId || 'user_2',
+            5: members[0]?.userId || 'user_1',
+            6: members[1]?.userId || 'user_2',
+          },
+        },
+        reminders: [
+          {
+            id: 'rem_' + Date.now() + '_1',
+            petId: 'new',
+            title: 'Café da Manhã & Água',
+            time: '08:00',
+            isEnabled: true,
+            category: 'food',
+          },
+          {
+            id: 'rem_' + Date.now() + '_2',
+            petId: 'new',
+            title: 'Jantar & Higiene',
+            time: '19:30',
+            isEnabled: true,
+            category: 'hygiene',
+          },
+        ],
       };
       addPet(newPetData);
     }
@@ -301,6 +398,43 @@ export const PetView: React.FC = () => {
     setShowVetModal(false);
   };
 
+  const handleSaveSchedule = (e: React.FormEvent) => {
+    e.preventDefault();
+    updatePetDutySchedule(pet.id, {
+      weeklyAssignment: scheduleAssignments,
+    });
+    setShowScheduleModal(false);
+  };
+
+  const handleCreateReminder = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!remTitle.trim()) {
+      showToast('Digite um título para o lembrete.', 'warning');
+      return;
+    }
+
+    addPetReminder(
+      pet.id,
+      {
+        petId: pet.id,
+        title: remTitle.trim(),
+        time: remTime,
+        category: remCategory,
+        isEnabled: true,
+      },
+      remSyncCalendar
+    );
+
+    setRemTitle('');
+    setRemTime('08:00');
+    setShowReminderModal(false);
+  };
+
+  // WhatsApp Cover Shift Request URL
+  const whatsappCoverMessage = encodeURIComponent(
+    `Olá! Hoje estou escalado(a) como tutor de ${pet.name} no Domus, mas preciso de uma ajuda. Alguém conseguiria cobrir o meu turno hoje? 🐾`
+  );
+
   return (
     <div className="space-y-6 pb-20 animate-in fade-in duration-200 w-full max-w-6xl mx-auto">
       {/* 1. Carrossel de Miniaturas dos Pets no Topo */}
@@ -318,10 +452,10 @@ export const PetView: React.FC = () => {
             variant="secondary"
             size="sm"
             onClick={handleOpenNewPetModal}
-            className="flex items-center gap-1.5 text-xs py-1 px-3"
+            icon={Plus}
+            className="text-xs py-1 px-3"
           >
-            <Plus className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
-            <span>Adicionar Pet</span>
+            Adicionar Pet
           </Button>
         </div>
 
@@ -332,7 +466,6 @@ export const PetView: React.FC = () => {
             const pIsCat = p.species === 'cat';
             const pIsDog = p.species === 'dog';
 
-            // Quick status summary for thumbnail badge
             let quickStatus = 'Tudo em dia';
             let isUrgent = false;
 
@@ -396,83 +529,469 @@ export const PetView: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Hero Profile Card do Pet Ativo */}
-      <div className="rounded-2xl bg-gradient-to-br from-sand-100/80 via-white to-brand-50/30 dark:from-gray-900 dark:via-gray-900/90 dark:to-gray-800/60 border border-sand-200 dark:border-gray-800 p-6 shadow-u-xs">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
-          <div className="flex items-center gap-5">
-            <div className="relative group cursor-pointer" onClick={() => photoInputRef.current?.click()}>
-              <img
-                src={pet.photoUrl}
-                alt={pet.name}
-                className="w-20 h-20 rounded-2xl object-cover ring-2 ring-white dark:ring-gray-700 shadow-u-sm"
-              />
-              <div className="absolute inset-0 bg-black/40 rounded-2xl flex flex-col items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                <Camera className="w-5 h-5" />
-                <span className="text-[9px] font-bold mt-0.5">Trocar</span>
-              </div>
-              <input
-                type="file"
-                ref={photoInputRef}
-                onChange={handlePhotoUploadDirect}
-                accept="image/*"
-                className="hidden"
-              />
-              <span className="absolute -bottom-1.5 -right-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand-500 text-white shadow-xs">
-                {isCat ? 'Felino' : isDog ? 'Canino' : 'Pet'}
+      {/* 2. Banner de Tutor Responsável de Hoje & Troca Rápida */}
+      <div className="rounded-2xl bg-gradient-to-r from-brand-600 via-brand-700 to-indigo-700 text-white p-5 shadow-u-md relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <img
+              src={
+                currentTutor?.avatarUrl ||
+                `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
+                  currentTutor?.displayName || 'Tutor'
+                )}`
+              }
+              alt={currentTutor?.displayName}
+              className="w-14 h-14 rounded-2xl object-cover ring-2 ring-white/30 shadow-md bg-white/10"
+            />
+            <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
+              <Check className="w-3 h-3 text-white stroke-[3]" />
+            </span>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] uppercase tracking-wider font-bold text-brand-100 bg-white/15 px-2 py-0.5 rounded-full">
+                {DAYS_OF_WEEK[todayDayOfWeek].label} • Plantão Pet
               </span>
+              {isOverrideToday && (
+                <span className="text-[10px] uppercase font-bold text-amber-200 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-300/30">
+                  Turno Substituído
+                </span>
+              )}
             </div>
 
-            <div className="space-y-1">
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold font-display text-gray-900 dark:text-white tracking-tight">
-                  {pet.name}
-                </h1>
-                {pet.weightKg && (
-                  <Badge variant="gray" size="sm">
-                    {pet.weightKg} kg
-                  </Badge>
-                )}
-              </div>
-              <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">
-                {pet.breed || (isCat ? 'Felino Doméstico' : 'Canino')} • {isCat ? 'Módulo Felino' : 'Módulo Canino'}
+            <h2 className="text-xl font-bold font-display tracking-tight text-white">
+              Tutor de Hoje: {currentTutor?.displayName}
+            </h2>
+
+            <p className="text-xs text-brand-100/90">
+              {isCurrentUserTutor
+                ? `🌟 É o seu dia de cuidar de ${pet.name}! Turnos diários: ${completedDutiesCount}/3 concluídos.`
+                : `${currentTutor?.displayName} está responsável pelos cuidados de ${pet.name} hoje.`}
+            </p>
+          </div>
+        </div>
+
+        {/* Quick actions for Shift Swap & WhatsApp Cover Request */}
+        <div className="flex items-center gap-2 self-stretch md:self-auto justify-end flex-wrap">
+          {!isCurrentUserTutor && (
+            <button
+              onClick={() => overrideTodayPetDuty(pet.id, currentUser.userId)}
+              className="px-3 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs flex items-center gap-1.5 backdrop-blur-sm transition-all active:scale-95 border border-white/25 shadow-u-xs"
+              title="Assumir o plantão de hoje para você"
+            >
+              <Repeat className="w-3.5 h-3.5" />
+              <span>Assumir Turno Hoje</span>
+            </button>
+          )}
+
+          {isCurrentUserTutor && (
+            <a
+              href={`https://wa.me/?text=${whatsappCoverMessage}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 shadow-u-xs"
+              title="Pedir para outro morador cobrir seu turno no WhatsApp"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              <span>Pedir Cobertura no WhatsApp</span>
+            </a>
+          )}
+
+          <button
+            onClick={() => setShowScheduleModal(true)}
+            className="px-3 py-2 rounded-xl bg-white text-brand-900 font-bold text-xs flex items-center gap-1.5 shadow-u-xs hover:bg-brand-50 transition-all active:scale-95"
+            title="Ver e editar a escala semanal completa de tutores"
+          >
+            <Calendar className="w-3.5 h-3.5 text-brand-600" />
+            <span>Ver Escala Semanal</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 3. Checklist dos 3 Turnos Diários (Manhã, Tarde e Noite) */}
+      <div className="rounded-2xl bg-white dark:bg-gray-900 border border-sand-200 dark:border-gray-800 p-6 shadow-u-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200/50 text-brand-600 dark:text-brand-400 flex items-center justify-center">
+              <Clock className="w-4 h-4 stroke-[2.2]" />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider font-display">
+                Rotina Diária & Turnos de {pet.name}
+              </h3>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                Checklist obrigatório de hoje ({completedDutiesCount}/3 turnos concluídos)
               </p>
-              <div className="flex items-center gap-3 text-xs text-gray-600 dark:text-gray-300 pt-0.5">
-                <span className="flex items-center gap-1 font-semibold text-success-600 dark:text-success-400">
-                  <HeartPulse className="w-3.5 h-3.5" />
-                  Saudável & Acompanhado
-                </span>
-                <span>•</span>
-                <span className="text-gray-500 dark:text-gray-400">
-                  Consumo: {pet.feeding?.dailyConsumptionGrams || 70}g/dia
-                </span>
-              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-auto">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => handleOpenEditPetModal(pet)}
-              className="flex items-center gap-1.5 text-xs"
-            >
-              <Edit3 className="w-3.5 h-3.5 text-gray-500" />
-              <span>Editar</span>
-            </Button>
-            {pets.length > 1 && (
+          <Badge variant={completedDutiesCount === 3 ? 'success' : 'brand'} size="sm">
+            {completedDutiesCount === 3 ? 'Dia 100% Completo 🎉' : `${3 - completedDutiesCount} Pendente(s)`}
+          </Badge>
+        </div>
+
+        {/* Turnos Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Turno 1: Manhã */}
+          <div
+            className={`p-4 rounded-2xl border transition-all ${
+              morningDone
+                ? 'bg-emerald-50/50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/40'
+                : 'bg-sand-50/40 dark:bg-gray-800/40 border-sand-200/60 dark:border-gray-800 hover:border-brand-300'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                <Sun className="w-4 h-4" />
+                Manhã (07h - 12h)
+              </span>
+              <span className="text-[10px] font-mono font-bold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950 px-2 py-0.5 rounded">
+                +20 XP
+              </span>
+            </div>
+
+            <h4 className="text-xs font-bold text-gray-900 dark:text-white mb-1">
+              Ração Matinal & Água Limpa
+            </h4>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-3">
+              {isCat ? 'Colocar ração seca fresca e recolher caixinha.' : 'Primeiro passeio curto matinal e café do pet.'}
+            </p>
+
+            {morningDone ? (
+              <div className="flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-gray-800 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-700 dark:text-emerald-400">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                <span className="truncate">
+                  Feito por <strong>{morningDone.completedByName}</strong> às{' '}
+                  {new Date(morningDone.completedAt || 0).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </div>
+            ) : (
               <button
-                onClick={() => deletePet(pet.id)}
-                className="p-2 text-gray-400 hover:text-error-600 rounded-xl hover:bg-error-50 dark:hover:bg-error-950/40 transition-colors"
-                title="Excluir este pet"
+                onClick={() => completePetDailyDuty(pet.id, 'morning', 'Turno da Manhã', 20)}
+                className="w-full py-2 px-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-u-xs transition-all active:scale-95 flex items-center justify-center gap-1.5"
               >
-                <Trash2 className="w-4 h-4" />
+                <Check className="w-3.5 h-3.5" />
+                <span>Marcar Concluído (+20 XP)</span>
+              </button>
+            )}
+          </div>
+
+          {/* Turno 2: Tarde */}
+          <div
+            className={`p-4 rounded-2xl border transition-all ${
+              afternoonDone
+                ? 'bg-emerald-50/50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/40'
+                : 'bg-sand-50/40 dark:bg-gray-800/40 border-sand-200/60 dark:border-gray-800 hover:border-brand-300'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider">
+                <Sparkles className="w-4 h-4" />
+                Tarde (12h - 18h)
+              </span>
+              <span className="text-[10px] font-mono font-bold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950 px-2 py-0.5 rounded">
+                +25 XP
+              </span>
+            </div>
+
+            <h4 className="text-xs font-bold text-gray-900 dark:text-white mb-1">
+              {isCat ? 'Checagem & Escovação' : 'Passeio Principal do Dia'}
+            </h4>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-3">
+              {isCat ? 'Brincadeira de gasto de energia e troca de água.' : 'Caminhada de 30min para necessidades e exercício.'}
+            </p>
+
+            {afternoonDone ? (
+              <div className="flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-gray-800 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-700 dark:text-emerald-400">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                <span className="truncate">
+                  Feito por <strong>{afternoonDone.completedByName}</strong> às{' '}
+                  {new Date(afternoonDone.completedAt || 0).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </div>
+            ) : (
+              <button
+                onClick={() => completePetDailyDuty(pet.id, 'afternoon', 'Turno da Tarde', 25)}
+                className="w-full py-2 px-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-u-xs transition-all active:scale-95 flex items-center justify-center gap-1.5"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>Marcar Concluído (+25 XP)</span>
+              </button>
+            )}
+          </div>
+
+          {/* Turno 3: Noite */}
+          <div
+            className={`p-4 rounded-2xl border transition-all ${
+              nightDone
+                ? 'bg-emerald-50/50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/40'
+                : 'bg-sand-50/40 dark:bg-gray-800/40 border-sand-200/60 dark:border-gray-800 hover:border-brand-300'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                <Moon className="w-4 h-4" />
+                Noite (18h - 23h)
+              </span>
+              <span className="text-[10px] font-mono font-bold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950 px-2 py-0.5 rounded">
+                +25 XP
+              </span>
+            </div>
+
+            <h4 className="text-xs font-bold text-gray-900 dark:text-white mb-1">
+              Jantar & Higiene Noturna
+            </h4>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-3">
+              {isCat ? 'Sachê úmido especial e limpeza noturna da areia.' : 'Jantar, reabastecer água e último xixi.'}
+            </p>
+
+            {nightDone ? (
+              <div className="flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-gray-800 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-700 dark:text-emerald-400">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                <span className="truncate">
+                  Feito por <strong>{nightDone.completedByName}</strong> às{' '}
+                  {new Date(nightDone.completedAt || 0).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </div>
+            ) : (
+              <button
+                onClick={() => completePetDailyDuty(pet.id, 'night', 'Turno da Noite', 25)}
+                className="w-full py-2 px-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-u-xs transition-all active:scale-95 flex items-center justify-center gap-1.5"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>Marcar Concluído (+25 XP)</span>
               </button>
             )}
           </div>
         </div>
       </div>
 
-      {/* 3. Módulos Adaptativos por Espécie */}
+      {/* 4. Quadro de Lembretes & Alarmes Compartilhados */}
+      <div className="rounded-2xl bg-white dark:bg-gray-900 border border-sand-200 dark:border-gray-800 p-6 shadow-u-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200/50 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+              <Bell className="w-4 h-4 stroke-[2.2]" />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider font-display">
+                Lembretes & Alarmes Programados
+              </h3>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                Horários sincronizados com a Agenda do Lar
+              </p>
+            </div>
+          </div>
+
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowReminderModal(true)}
+            icon={Plus}
+            className="text-xs py-1 px-3"
+          >
+            Novo Lembrete
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {(!pet.reminders || pet.reminders.length === 0) ? (
+            <p className="text-xs text-gray-400 col-span-3 py-4 text-center">
+              Nenhum lembrete cadastrado. Clique em "Novo Lembrete" para programar rotinas fixas.
+            </p>
+          ) : (
+            pet.reminders.map((rem) => (
+              <div
+                key={rem.id}
+                className={`p-3.5 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                  rem.isEnabled
+                    ? 'bg-sand-50/40 dark:bg-gray-800/50 border-sand-200/60 dark:border-gray-800'
+                    : 'bg-gray-50/30 dark:bg-gray-800/20 border-gray-200/40 dark:border-gray-800/40 opacity-60'
+                }`}
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="font-mono text-xs font-black text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950 px-2 py-0.5 rounded">
+                      {rem.time}
+                    </span>
+                    <span className="text-[10px] font-semibold uppercase text-gray-400">
+                      {rem.category}
+                    </span>
+                  </div>
+                  <h4 className="text-xs font-bold text-gray-900 dark:text-white truncate">
+                    {rem.title}
+                  </h4>
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button
+                    onClick={() => togglePetReminder(pet.id, rem.id)}
+                    className={`w-9 h-5 rounded-full p-0.5 transition-colors ${
+                      rem.isEnabled ? 'bg-brand-600' : 'bg-gray-300 dark:bg-gray-700'
+                    }`}
+                  >
+                    <div
+                      className={`w-4 h-4 rounded-full bg-white shadow-xs transition-transform ${
+                        rem.isEnabled ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                  <button
+                    onClick={() => deletePetReminder(pet.id, rem.id)}
+                    className="p-1 text-gray-400 hover:text-error-600 rounded-lg hover:bg-error-50 dark:hover:bg-error-950/40 transition-colors"
+                    title="Excluir lembrete"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* 5. Hero Profile Card do Pet Ativo & Ranking dos Tutores */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        {/* Profile Card (2 cols) */}
+        <div className="md:col-span-2 rounded-2xl bg-gradient-to-br from-sand-100/80 via-white to-brand-50/30 dark:from-gray-900 dark:via-gray-900/90 dark:to-gray-800/60 border border-sand-200 dark:border-gray-800 p-6 shadow-u-xs flex flex-col justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
+            <div className="flex items-center gap-5">
+              <div className="relative group cursor-pointer" onClick={() => photoInputRef.current?.click()}>
+                <img
+                  src={pet.photoUrl}
+                  alt={pet.name}
+                  className="w-20 h-20 rounded-2xl object-cover ring-2 ring-white dark:ring-gray-700 shadow-u-sm"
+                />
+                <div className="absolute inset-0 bg-black/40 rounded-2xl flex flex-col items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Camera className="w-5 h-5" />
+                  <span className="text-[9px] font-bold mt-0.5">Trocar</span>
+                </div>
+                <input
+                  type="file"
+                  ref={photoInputRef}
+                  onChange={handlePhotoUploadDirect}
+                  accept="image/*"
+                  className="hidden"
+                />
+                <span className="absolute -bottom-1.5 -right-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand-500 text-white shadow-xs">
+                  {isCat ? 'Felino' : isDog ? 'Canino' : 'Pet'}
+                </span>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl font-bold font-display text-gray-900 dark:text-white tracking-tight">
+                    {pet.name}
+                  </h1>
+                  {pet.weightKg && (
+                    <Badge variant="gray" size="sm">
+                      {pet.weightKg} kg
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">
+                  {pet.breed || (isCat ? 'Felino Doméstico' : 'Canino')} • {isCat ? 'Módulo Felino' : 'Módulo Canino'}
+                </p>
+                <div className="flex items-center gap-3 text-xs text-gray-600 dark:text-gray-300 pt-0.5">
+                  <span className="flex items-center gap-1 font-semibold text-success-600 dark:text-success-400">
+                    <HeartPulse className="w-3.5 h-3.5" />
+                    Saudável & Acompanhado
+                  </span>
+                  <span>•</span>
+                  <span className="text-gray-500 dark:text-gray-400">
+                    Consumo: {pet.feeding?.dailyConsumptionGrams || 70}g/dia
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handleOpenEditPetModal(pet)}
+                icon={Edit3}
+                className="text-xs"
+              >
+                Editar
+              </Button>
+              {pets.length > 1 && (
+                <button
+                  onClick={() => deletePet(pet.id)}
+                  className="p-2 text-gray-400 hover:text-error-600 rounded-xl hover:bg-error-50 dark:hover:bg-error-950/40 transition-colors"
+                  title="Excluir este pet"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Ranking Semanal de Tutores Pet (1 col) */}
+        <div className="rounded-2xl bg-white dark:bg-gray-900 border border-sand-200 dark:border-gray-800 p-5 shadow-u-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-2">
+            <div className="flex items-center gap-2">
+              <Award className="w-4 h-4 text-amber-500" />
+              <h3 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider font-display">
+                Tutores da Semana
+              </h3>
+            </div>
+            <span className="text-[10px] font-semibold text-brand-600 bg-brand-50 dark:bg-brand-950 px-2 py-0.5 rounded">
+              Ranking Pet
+            </span>
+          </div>
+
+          <div className="space-y-2.5">
+            {members.map((m, idx) => {
+              const petDutiesDone = (pet.duties || []).filter((d) => d.completedByUserId === m.userId).length;
+
+              return (
+                <div
+                  key={m.userId}
+                  className="flex items-center justify-between p-2.5 rounded-xl bg-sand-50/40 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800 text-xs"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="font-bold text-xs w-4 text-gray-400">#{idx + 1}</span>
+                    <img
+                      src={
+                        m.avatarUrl ||
+                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(m.displayName)}`
+                      }
+                      alt={m.displayName}
+                      className="w-7 h-7 rounded-lg object-cover ring-1 ring-gray-200"
+                    />
+                    <div>
+                      <span className="font-bold text-gray-900 dark:text-white block">
+                        {m.displayName}
+                      </span>
+                      <span className="text-[10px] text-gray-400">
+                        {petDutiesDone} turnos cumpridos
+                      </span>
+                    </div>
+                  </div>
+
+                  <Badge variant={idx === 0 ? 'brand' : 'gray'} size="sm">
+                    {idx === 0 ? '⭐ Tutor Ouro' : 'Tutor Ativo'}
+                  </Badge>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* 6. Módulos Adaptativos por Espécie */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* === ADAPTATIVO: GATO (Caixa de Areia) === */}
         {isCat && pet.litterBox && (
@@ -703,10 +1222,10 @@ export const PetView: React.FC = () => {
                   variant="primary"
                   size="sm"
                   onClick={() => addPetFoodToShopping('dry', pet.id)}
-                  className="flex items-center gap-1 text-xs"
+                  icon={ShoppingBag}
+                  className="text-xs"
                 >
-                  <ShoppingBag className="w-3.5 h-3.5" />
-                  <span>Pedir Ração</span>
+                  Pedir Ração
                 </Button>
               )}
             </div>
@@ -753,10 +1272,10 @@ export const PetView: React.FC = () => {
                     variant="secondary"
                     size="sm"
                     onClick={() => addPetFoodToShopping('sachet', pet.id)}
+                    icon={ShoppingBag}
                     className="text-xs"
                   >
-                    <ShoppingBag className="w-3.5 h-3.5 mr-1" />
-                    <span>Pedir</span>
+                    Pedir
                   </Button>
                 )}
               </div>
@@ -765,7 +1284,7 @@ export const PetView: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. Controle Veterinário & Saúde */}
+      {/* 7. Controle Veterinário & Saúde */}
       <div className="rounded-2xl bg-white dark:bg-gray-900 border border-sand-200 dark:border-gray-800 p-6 shadow-u-xs space-y-4">
         <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
           <div className="flex items-center gap-2.5">
@@ -785,10 +1304,10 @@ export const PetView: React.FC = () => {
             variant="secondary"
             size="sm"
             onClick={() => setShowAddMedSheet(true)}
-            className="flex items-center gap-1.5 text-xs py-1 px-3"
+            icon={Plus}
+            className="text-xs py-1 px-3"
           >
-            <Plus className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
-            <span>Novo Registro</span>
+            Novo Registro
           </Button>
         </div>
 
@@ -849,7 +1368,7 @@ export const PetView: React.FC = () => {
         </div>
       </div>
 
-      {/* 5. Emergência Veterinária & Histórico de Peso (Grid 2 cols) */}
+      {/* 8. Emergência Veterinária & Histórico de Peso (Grid 2 cols) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Veterinário de Emergência Card */}
         <div className="rounded-2xl bg-white dark:bg-gray-900 border border-sand-200 dark:border-gray-800 p-5 shadow-u-xs space-y-4">
@@ -986,69 +1505,191 @@ export const PetView: React.FC = () => {
         </div>
       </div>
 
-      {/* 6. Feed Colaborativo de Atividades Recentes do Pet */}
-      <div className="rounded-2xl bg-white dark:bg-gray-900 border border-sand-200 dark:border-gray-800 p-6 shadow-u-xs space-y-4">
-        <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
-          <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4 text-brand-600 dark:text-brand-400" />
-            <h3 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider font-display">
-              Feed de Cuidados & Histórico Recente
-            </h3>
-          </div>
-          <span className="text-[11px] text-gray-400">Atividades realizadas</span>
-        </div>
+      {/* MODAL: Configurar Escala Semanal de Tutores */}
+      {showScheduleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-gray-800">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-brand-600" />
+                <h3 className="text-base font-bold font-display text-gray-900 dark:text-white">
+                  Escala Semanal de Tutores ({pet.name})
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowScheduleModal(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-        <div className="space-y-2.5">
-          {(!pet.careLogs || pet.careLogs.length === 0) ? (
-            <p className="text-xs text-gray-400 py-3 text-center">
-              Nenhuma atividade registrada recentemente para {pet.name}.
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Defina quem é o tutor responsável por cada dia da semana. O sistema alternará automaticamente e notificará o morador no app.
             </p>
-          ) : (
-            pet.careLogs.slice(0, 6).map((log) => {
-              const minutesAgo = Math.floor((now - log.performedAt) / 60000);
-              const timeDisplay =
-                minutesAgo < 60
-                  ? `${minutesAgo}m atrás`
-                  : minutesAgo < 1440
-                  ? `${Math.floor(minutesAgo / 60)}h atrás`
-                  : `${Math.floor(minutesAgo / 1440)}d atrás`;
 
-              return (
-                <div
-                  key={log.id}
-                  className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-sand-50/30 dark:bg-gray-800/40"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-brand-50 dark:bg-brand-950/60 text-brand-600 dark:text-brand-400 flex items-center justify-center font-bold text-xs">
-                      {log.actionType === 'walk' ? (
-                        <Footprints className="w-4 h-4" />
-                      ) : log.actionType === 'scoop' || log.actionType === 'litter_change' ? (
-                        <Sparkles className="w-4 h-4" />
-                      ) : log.actionType === 'bath' ? (
-                        <Bath className="w-4 h-4" />
-                      ) : (
-                        <Package className="w-4 h-4" />
+            <form onSubmit={handleSaveSchedule} className="space-y-3">
+              {DAYS_OF_WEEK.map((day) => {
+                const assignedUserId = scheduleAssignments[day.id] || members[0]?.userId || 'user_1';
+                const isToday = day.id === todayDayOfWeek;
+
+                return (
+                  <div
+                    key={day.id}
+                    className={`p-3 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+                      isToday
+                        ? 'border-brand-500 bg-brand-50/40 dark:bg-brand-950/40'
+                        : 'border-gray-200 dark:border-gray-800 bg-sand-50/30 dark:bg-gray-800/40'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-[130px]">
+                      <span
+                        className={`font-bold ${
+                          isToday ? 'text-brand-600 dark:text-brand-400' : 'text-gray-900 dark:text-white'
+                        }`}
+                      >
+                        {day.label}
+                      </span>
+                      {isToday && (
+                        <span className="text-[9px] font-bold uppercase bg-brand-500 text-white px-1.5 py-0.5 rounded">
+                          Hoje
+                        </span>
                       )}
                     </div>
-                    <div>
-                      <p className="text-xs font-bold text-gray-900 dark:text-white">
-                        {log.title}
-                      </p>
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                        Por <strong className="text-gray-700 dark:text-gray-300 font-semibold">{log.performedByName}</strong> • {timeDisplay}
-                      </p>
-                    </div>
-                  </div>
 
-                  <span className="text-xs font-mono font-bold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/60 px-2 py-0.5 rounded">
-                    +{log.xpEarned} XP
-                  </span>
-                </div>
-              );
-            })
-          )}
+                    <select
+                      value={assignedUserId}
+                      onChange={(e) =>
+                        setScheduleAssignments({
+                          ...scheduleAssignments,
+                          [day.id]: e.target.value,
+                        })
+                      }
+                      className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs font-semibold text-gray-900 dark:text-white focus:outline-none"
+                    >
+                      {members.map((m) => (
+                        <option key={m.userId} value={m.userId}>
+                          {m.displayName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })}
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100 dark:border-gray-800">
+                <Button
+                  type="button"
+                  variant="tertiary"
+                  size="sm"
+                  onClick={() => setShowScheduleModal(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" variant="primary" size="sm">
+                  Salvar Escala
+                </Button>
+              </div>
+            </form>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* MODAL: Adicionar Lembrete / Alarme */}
+      {showReminderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-6 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-gray-800">
+              <div className="flex items-center gap-2">
+                <Bell className="w-5 h-5 text-amber-500" />
+                <h3 className="text-base font-bold font-display text-gray-900 dark:text-white">
+                  Novo Lembrete Programado ({pet.name})
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowReminderModal(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateReminder} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Título da Tarefa *
+                </label>
+                <input
+                  type="text"
+                  value={remTitle}
+                  onChange={(e) => setRemTitle(e.target.value)}
+                  placeholder="Ex: Oferecer Sachê Gourmet, Passeio de Fim de Tarde, Dar Antibiótico"
+                  className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                    Horário Alvo
+                  </label>
+                  <input
+                    type="time"
+                    value={remTime}
+                    onChange={(e) => setRemTime(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs font-bold font-mono focus:outline-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                    Categoria
+                  </label>
+                  <select
+                    value={remCategory}
+                    onChange={(e) => setRemCategory(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs font-semibold focus:outline-none"
+                  >
+                    <option value="food">Alimentação</option>
+                    <option value="walk">Passeio</option>
+                    <option value="litter">Caixa de Areia</option>
+                    <option value="hygiene">Higiene / Banho</option>
+                    <option value="med">Medicamento</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-sand-50/70 dark:bg-gray-800/60 border border-sand-200 dark:border-gray-700">
+                <label className="flex items-center gap-2 text-xs font-semibold text-gray-800 dark:text-gray-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={remSyncCalendar}
+                    onChange={(e) => setRemSyncCalendar(e.target.checked)}
+                    className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500"
+                  />
+                  <span>Sincronizar automaticamente na Agenda do Lar</span>
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                <Button
+                  type="button"
+                  variant="tertiary"
+                  size="sm"
+                  onClick={() => setShowReminderModal(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" variant="primary" size="sm">
+                  Salvar Lembrete
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: Adicionar / Editar Pet */}
       {showPetModal && (
