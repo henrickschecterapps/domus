@@ -21,18 +21,18 @@ export const ScoreRing: React.FC<ScoreRingProps> = ({
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (clampedScore / 100) * circumference;
 
-  let strokeGradientId = 'botanicalGradient';
+  let strokeGradientId = 'emeraldNeonGradient';
   let textColor = 'text-success-600 dark:text-success-400';
   let badgeText = 'Ambientes em Harmonia';
   let badgeVariant: BadgeVariant = 'success';
 
   if (clampedScore < 50) {
-    strokeGradientId = 'terracottaGradient';
-    textColor = 'text-brand-600 dark:text-brand-400';
+    strokeGradientId = 'crimsonNeonGradient';
+    textColor = 'text-error-600 dark:text-error-400';
     badgeText = 'Atenção Crítica';
     badgeVariant = 'error';
   } else if (clampedScore < 80) {
-    strokeGradientId = 'amberGradient';
+    strokeGradientId = 'amberNeonGradient';
     textColor = 'text-warning-600 dark:text-warning-400';
     badgeText = 'Requer Manutenção';
     badgeVariant = 'warning';
@@ -47,25 +47,25 @@ export const ScoreRing: React.FC<ScoreRingProps> = ({
             ? 'bg-success-500'
             : clampedScore >= 50
             ? 'bg-warning-500'
-            : 'bg-brand-500'
+            : 'bg-error-500'
         }`}
       />
-      <div className="pointer-events-none absolute -bottom-16 -right-16 w-48 h-48 rounded-full bg-brand-500/10 dark:bg-brand-400/10 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-16 -right-16 w-48 h-48 rounded-full bg-brand-500/15 dark:bg-brand-400/15 blur-3xl" />
 
       <div className="relative z-10 flex items-center justify-center flex-shrink-0" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="rotate-[-90deg] drop-shadow-sm">
           <defs>
-            <linearGradient id="botanicalGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#2E7D32" />
-              <stop offset="100%" stopColor="#4ADE80" />
+            <linearGradient id="emeraldNeonGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#10B981" />
+              <stop offset="100%" stopColor="#34D399" />
             </linearGradient>
-            <linearGradient id="amberGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#D97706" />
+            <linearGradient id="amberNeonGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#F59E0B" />
               <stop offset="100%" stopColor="#FBBF24" />
             </linearGradient>
-            <linearGradient id="terracottaGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#C25E34" />
-              <stop offset="100%" stopColor="#F97316" />
+            <linearGradient id="crimsonNeonGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#F43F5E" />
+              <stop offset="100%" stopColor="#FB7185" />
             </linearGradient>
           </defs>
           {/* Base Track */}

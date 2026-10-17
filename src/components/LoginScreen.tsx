@@ -97,9 +97,9 @@ export const LoginScreen: React.FC = () => {
     <div className="relative min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col justify-center items-center px-4 py-8 sm:p-6 transition-colors duration-200 overflow-hidden">
       {/* Multi-Layer Ambient Lighting & Noise Texture */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-brand-500/15 dark:bg-brand-500/15 blur-[110px] animate-float-slow" />
-        <div className="absolute top-1/2 -right-32 w-96 h-96 rounded-full bg-warning-500/10 dark:bg-warning-500/10 blur-[110px]" />
-        <div className="absolute -bottom-32 left-1/3 w-96 h-96 rounded-full bg-brand-500/10 blur-[110px]" />
+        <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-brand-500/20 dark:bg-brand-500/20 blur-[120px] animate-float-slow" />
+        <div className="absolute top-1/2 -right-32 w-96 h-96 rounded-full bg-violet-500/15 dark:bg-violet-500/15 blur-[120px]" />
+        <div className="absolute -bottom-32 left-1/3 w-96 h-96 rounded-full bg-emerald-500/10 blur-[120px]" />
         <div className="absolute inset-0 bg-architectural-grid opacity-60" />
         <div className="absolute inset-0 bg-noise-overlay opacity-80" />
       </div>
@@ -114,7 +114,7 @@ export const LoginScreen: React.FC = () => {
 
           <h1 className="text-3xl sm:text-5xl font-extrabold font-display tracking-tight text-gray-900 dark:text-white leading-[1.08]">
             O lar perfeito, em{' '}
-            <span className="bg-gradient-to-r from-brand-500 via-brand-600 to-warning-600 dark:from-brand-400 dark:via-brand-300 dark:to-warning-400 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-brand-500 via-violet-500 to-emerald-500 dark:from-brand-400 dark:via-violet-400 dark:to-emerald-400 bg-clip-text text-transparent">
               harmonia diária.
             </span>
           </h1>

@@ -10,8 +10,8 @@ export const LeaderboardWidget: React.FC = () => {
   const sortedMembers = [...members].sort((a, b) => b.weeklyXP - a.weeklyXP);
   const weeklyGoalXP = house.weeklyGoalXP || 500;
 
-  // Warm Editorial Sanctuary organic activity ring palette
-  const ringColors = ['#C25E34', '#2E7D32', '#D97706', '#8C3F22'];
+  // Neo-SaaS & Fintech Sleek activity ring palette (Indigo, Emerald, Violet, Amber)
+  const ringColors = ['#6366F1', '#10B981', '#8B5CF6', '#F59E0B'];
 
   return (
     <div className="u-card-interactive rounded-2xl bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-200/80 dark:border-gray-800/80 p-5 shadow-u-sm hover:shadow-u-card-hover transition-all">

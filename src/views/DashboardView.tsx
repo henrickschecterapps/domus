@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { ScoreRing } from '../components/ScoreRing';
 import { QuickCleanWidget } from '../components/QuickCleanWidget';
 import { PetStatusPill } from '../components/PetStatusPill';
 import { LeaderboardWidget } from '../components/LeaderboardWidget';
 import { CalendarWidget } from '../components/CalendarWidget';
 import { CalendarModal } from '../components/CalendarModal';
-import { StatCard } from '../components/untitled/StatCard';
 import {
   Activity,
   Sparkles,
@@ -23,6 +21,11 @@ import {
   Trash2,
   StickyNote,
   X,
+  Wallet,
+  ShoppingBag,
+  Cat,
+  ArrowUpRight,
+  Flame,
 } from 'lucide-react';
 import { Button } from '../components/untitled/Button';
 import { Badge } from '../components/untitled/Badge';
@@ -96,6 +99,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
   const warningRooms = rooms.filter((r) => r.statusLevel === 'warning').length;
   const urgentRooms = rooms.filter((r) => r.statusLevel === 'urgent').length;
 
+  const clampedScore = Math.max(0, Math.min(100, Math.round(house.houseScore)));
+  const ringSize = 112;
+  const ringStroke = 9;
+  const ringRadius = (ringSize - ringStroke) / 2;
+  const ringCircumference = 2 * Math.PI * ringRadius;
+  const ringOffset = ringCircumference - (clampedScore / 100) * ringCircumference;
+
+  const firstName = currentUser.displayName?.split(' ')[0] || 'Morador';
+
   const handleCopyWifi = () => {
     if (!house.wifiPassword) return;
     navigator.clipboard.writeText(house.wifiPassword);
@@ -128,60 +140,244 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
   });
 
   return (
-    <div className="space-y-6 pb-20 animate-in fade-in duration-200 w-full">
-      {/* Global House Health Score Ring */}
-      <ScoreRing
-        score={house.houseScore}
-        label="Score Geral da Residência"
-        sublabel={
-          house.houseScore >= 80
-            ? 'Todos os ambientes estão sob controle, limpos e com rotinas em dia.'
-            : house.houseScore >= 50
-            ? 'Existem ambientes acumulando urgência que merecem atenção nesta semana.'
-            : 'Múltiplos cômodos ultrapassaram o limite de tolerância sanitária.'
-        }
-      />
+    <div className="space-y-5 pb-20 animate-in fade-in duration-200 w-full">
+      {/* Immersive Ultraviolet Hero Card */}
+      <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#1E1B4B] via-[#312E81] to-[#0F172A] text-white p-6 sm:p-7 shadow-u-xl border border-indigo-400/25">
+        {/* Ambient Neon Orbs inside Hero */}
+        <div className="pointer-events-none absolute -top-24 -right-16 w-80 h-80 rounded-full bg-violet-500/30 blur-[80px]" />
+        <div className="pointer-events-none absolute -bottom-24 -left-16 w-72 h-72 rounded-full bg-brand-400/25 blur-[75px]" />
+        <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-40 rounded-full bg-emerald-400/10 blur-[90px]" />
 
-      {/* Untitled UI Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard
-          title="Cômodos Limpos"
-          value={cleanRooms}
-          subtitle={`de ${rooms.length} ambientes totais`}
-          badgeText="Em dia"
-          badgeVariant="success"
-          badgeDot
-          icon={CheckCircle2}
-          iconColor="text-success-600 dark:text-success-400"
-          iconBgColor="bg-success-50 dark:bg-success-950/50 border border-success-100 dark:border-success-900/30"
-          onClick={() => onNavigateTab('cleaning')}
-        />
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          {/* Left: Personalized Greeting + Status Narrative */}
+          <div className="flex flex-col sm:flex-row items-center sm:items-center gap-5 text-center sm:text-left">
+            {/* Neon Score Ring */}
+            <div className="relative flex items-center justify-center flex-shrink-0" style={{ width: ringSize, height: ringSize }}>
+              <svg width={ringSize} height={ringSize} className="rotate-[-90deg] drop-shadow-[0_0_16px_rgba(99,102,241,0.45)]">
+                <defs>
+                  <linearGradient id="heroEmeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#10B981" />
+                    <stop offset="100%" stopColor="#34D399" />
+                  </linearGradient>
+                  <linearGradient id="heroAmberGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#F59E0B" />
+                    <stop offset="100%" stopColor="#FBBF24" />
+                  </linearGradient>
+                  <linearGradient id="heroCrimsonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#F43F5E" />
+                    <stop offset="100%" stopColor="#FB7185" />
+                  </linearGradient>
+                </defs>
+                <circle
+                  cx={ringSize / 2}
+                  cy={ringSize / 2}
+                  r={ringRadius}
+                  stroke="rgba(255,255,255,0.12)"
+                  strokeWidth={ringStroke}
+                  fill="none"
+                />
+                <circle
+                  cx={ringSize / 2}
+                  cy={ringSize / 2}
+                  r={ringRadius}
+                  stroke={
+                    clampedScore >= 80
+                      ? 'url(#heroEmeraldGrad)'
+                      : clampedScore >= 50
+                      ? 'url(#heroAmberGrad)'
+                      : 'url(#heroCrimsonGrad)'
+                  }
+                  strokeWidth={ringStroke}
+                  strokeDasharray={ringCircumference}
+                  strokeDashoffset={ringOffset}
+                  strokeLinecap="round"
+                  fill="none"
+                  className="transition-all duration-1000 ease-out"
+                />
+              </svg>
+              <div className="absolute flex flex-col items-center justify-center text-center">
+                <span className="text-3xl font-extrabold font-display tracking-tight text-white leading-none">
+                  {clampedScore}
+                </span>
+                <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-indigo-200/80 mt-1">
+                  SCORE
+                </span>
+              </div>
+            </div>
 
-        <StatCard
-          title="Em Atenção"
-          value={warningRooms}
-          subtitle="rotinas acumulando"
-          badgeText="Alerta"
-          badgeVariant="warning"
-          badgeDot
-          icon={AlertTriangle}
-          iconColor="text-warning-600 dark:text-warning-400"
-          iconBgColor="bg-warning-50 dark:bg-warning-950/50 border border-warning-100 dark:border-warning-900/30"
-          onClick={() => onNavigateTab('cleaning')}
-        />
+            {/* Greeting & Summary */}
+            <div className="space-y-2 max-w-xl">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15">
+                <span
+                  className={`w-2 h-2 rounded-full animate-pulse ${
+                    clampedScore >= 80
+                      ? 'bg-emerald-400'
+                      : clampedScore >= 50
+                      ? 'bg-amber-400'
+                      : 'bg-rose-400'
+                  }`}
+                />
+                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-indigo-100">
+                  {clampedScore >= 80
+                    ? 'AMBIENTES EM HARMONIA'
+                    : clampedScore >= 50
+                    ? 'MANUTENÇÃO PREVENTIVA'
+                    : 'ATENÇÃO PRIORITÁRIA'}
+                </span>
+                <span className="text-[10px] font-mono text-indigo-200/80 border-l border-white/15 pl-2 flex items-center gap-1">
+                  <Flame className="w-3 h-3 text-amber-400" />
+                  {currentUser.weeklyXP} XP
+                </span>
+              </div>
 
-        <StatCard
-          title="Urgentes"
-          value={urgentRooms}
-          subtitle="precisam de ação hoje"
-          badgeText={urgentRooms > 0 ? "Ação Prioritária" : "Zero pendências"}
-          badgeVariant={urgentRooms > 0 ? "error" : "success"}
-          badgeDot={urgentRooms > 0}
-          icon={AlertCircle}
-          iconColor="text-error-600 dark:text-error-400"
-          iconBgColor="bg-error-50 dark:bg-error-950/50 border border-error-100 dark:border-error-900/30"
+              <h2 className="text-2xl sm:text-3xl font-extrabold font-display tracking-tight text-white leading-tight">
+                Olá, {firstName} 👋
+              </h2>
+
+              <p className="text-xs sm:text-sm text-indigo-100/85 leading-relaxed">
+                {clampedScore >= 80
+                  ? 'Todos os ambientes da casa estão sob controle, limpos e com as rotinas em dia.'
+                  : clampedScore >= 50
+                  ? 'Existem cômodos acumulando tarefas nesta semana. Que tal concluir uma limpeza rápida e ganhar XP?'
+                  : 'Múltiplos ambientes ultrapassaram o limite ideal e precisam de cuidado hoje.'}
+              </p>
+            </div>
+          </div>
+
+          {/* Right: 3 Integrated Glass Sub-Cards for Room Health */}
+          <div className="grid grid-cols-3 gap-2.5 sm:gap-3 lg:w-[410px] flex-shrink-0">
+            <button
+              onClick={() => onNavigateTab('cleaning')}
+              className="group text-left p-3.5 rounded-2xl bg-white/10 hover:bg-white/15 backdrop-blur-md border border-white/15 hover:border-emerald-400/50 transition-all duration-200 active:scale-95"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-7 h-7 rounded-xl bg-emerald-400/20 text-emerald-300 flex items-center justify-center">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+                <ArrowUpRight className="w-3.5 h-3.5 text-indigo-200/50 group-hover:text-white group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+              </div>
+              <div className="text-2xl font-extrabold font-display text-white leading-none">
+                {cleanRooms}
+              </div>
+              <div className="text-[11px] font-semibold text-indigo-100/90 mt-1 truncate">
+                Limpos
+              </div>
+              <div className="text-[9px] font-mono text-emerald-300/90 uppercase tracking-wider mt-0.5">
+                de {rooms.length} total
+              </div>
+            </button>
+
+            <button
+              onClick={() => onNavigateTab('cleaning')}
+              className="group text-left p-3.5 rounded-2xl bg-white/10 hover:bg-white/15 backdrop-blur-md border border-white/15 hover:border-amber-400/50 transition-all duration-200 active:scale-95"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-7 h-7 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center">
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+                <ArrowUpRight className="w-3.5 h-3.5 text-indigo-200/50 group-hover:text-white group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+              </div>
+              <div className="text-2xl font-extrabold font-display text-white leading-none">
+                {warningRooms}
+              </div>
+              <div className="text-[11px] font-semibold text-indigo-100/90 mt-1 truncate">
+                Em Atenção
+              </div>
+              <div className="text-[9px] font-mono text-amber-300/90 uppercase tracking-wider mt-0.5">
+                acumulando
+              </div>
+            </button>
+
+            <button
+              onClick={() => onNavigateTab('cleaning')}
+              className="group text-left p-3.5 rounded-2xl bg-white/10 hover:bg-white/15 backdrop-blur-md border border-white/15 hover:border-rose-400/50 transition-all duration-200 active:scale-95"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-7 h-7 rounded-xl bg-rose-400/20 text-rose-300 flex items-center justify-center">
+                  <AlertCircle className="w-4 h-4" />
+                </div>
+                <ArrowUpRight className="w-3.5 h-3.5 text-indigo-200/50 group-hover:text-white group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+              </div>
+              <div className="text-2xl font-extrabold font-display text-white leading-none">
+                {urgentRooms}
+              </div>
+              <div className="text-[11px] font-semibold text-indigo-100/90 mt-1 truncate">
+                Urgentes
+              </div>
+              <div className="text-[9px] font-mono text-rose-300/90 uppercase tracking-wider mt-0.5">
+                {urgentRooms > 0 ? 'ação hoje' : 'zerado'}
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 1-Touch Quick Action Bar (Bento Pills) */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+        <button
           onClick={() => onNavigateTab('cleaning')}
-        />
+          className="u-card-interactive flex items-center gap-2.5 p-3 rounded-2xl bg-white/95 dark:bg-gray-900/95 border border-gray-200/80 dark:border-gray-800/80 shadow-u-xs hover:shadow-u-md text-left transition-all active:scale-95"
+        >
+          <div className="w-8 h-8 rounded-xl bg-brand-50 dark:bg-brand-950/80 text-brand-600 dark:text-brand-400 flex items-center justify-center flex-shrink-0">
+            <Sparkles className="w-4 h-4 stroke-[2.2]" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-gray-900 dark:text-white truncate">Limpar Cômodos</p>
+            <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">+XP & Check-in</p>
+          </div>
+        </button>
+
+        <button
+          onClick={() => onNavigateTab('finance')}
+          className="u-card-interactive flex items-center gap-2.5 p-3 rounded-2xl bg-white/95 dark:bg-gray-900/95 border border-gray-200/80 dark:border-gray-800/80 shadow-u-xs hover:shadow-u-md text-left transition-all active:scale-95"
+        >
+          <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
+            <Wallet className="w-4 h-4 stroke-[2.2]" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-gray-900 dark:text-white truncate">Finanças & PIX</p>
+            <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">Contas & Rateio</p>
+          </div>
+        </button>
+
+        <button
+          onClick={() => onNavigateTab('pantry')}
+          className="u-card-interactive flex items-center gap-2.5 p-3 rounded-2xl bg-white/95 dark:bg-gray-900/95 border border-gray-200/80 dark:border-gray-800/80 shadow-u-xs hover:shadow-u-md text-left transition-all active:scale-95"
+        >
+          <div className="w-8 h-8 rounded-xl bg-violet-50 dark:bg-violet-950/80 text-violet-600 dark:text-violet-400 flex items-center justify-center flex-shrink-0">
+            <ShoppingBag className="w-4 h-4 stroke-[2.2]" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-gray-900 dark:text-white truncate">Despensa & Lista</p>
+            <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">Reposição rápida</p>
+          </div>
+        </button>
+
+        <button
+          onClick={() => onNavigateTab('pet')}
+          className="u-card-interactive flex items-center gap-2.5 p-3 rounded-2xl bg-white/95 dark:bg-gray-900/95 border border-gray-200/80 dark:border-gray-800/80 shadow-u-xs hover:shadow-u-md text-left transition-all active:scale-95"
+        >
+          <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0">
+            <Cat className="w-4 h-4 stroke-[2.2]" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-gray-900 dark:text-white truncate">Área Pet</p>
+            <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">Turnos & Saúde</p>
+          </div>
+        </button>
+
+        <button
+          onClick={() => setShowAddNoteModal(true)}
+          className="col-span-2 sm:col-span-1 u-card-interactive flex items-center gap-2.5 p-3 rounded-2xl bg-gradient-to-r from-brand-600 to-violet-600 text-white shadow-u-glow text-left transition-all active:scale-95"
+        >
+          <div className="w-8 h-8 rounded-xl bg-white/20 text-white flex items-center justify-center flex-shrink-0">
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-white truncate">Colar Recado</p>
+            <p className="text-[10px] text-indigo-100 truncate">Mural da Geladeira</p>
+          </div>
+        </button>
       </div>
 
       {/* Central Domus: Wi-Fi Rápido & Mural da Geladeira */}

@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
     margin: 0;
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
@@ -13,51 +13,51 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Outfit', 'DM Sans', sans-serif;
-    letter-spacing: -0.02em;
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    letter-spacing: -0.025em;
   }
 }
 
-/* Warm Editorial Sanctuary: Canvas & Surface Baseline */
+/* Neo-SaaS & Fintech Sleek: Electric Indigo & Obsidian Baseline */
 :root {
-  --color-brand-primary: #C25E34;
-  --color-brand-accent: #D97706;
-  --color-botanical: #2E7D32;
+  --color-brand-primary: #6366F1;
+  --color-brand-accent: #8B5CF6;
+  --color-botanical: #10B981;
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Custom Brand Text Selection */
 ::selection {
-  background-color: rgba(194, 94, 52, 0.22);
+  background-color: rgba(99, 102, 241, 0.22);
   color: inherit;
 }
 
 html.dark ::selection {
-  background-color: rgba(206, 136, 95, 0.3);
-  color: #FAF3ED;
+  background-color: rgba(129, 140, 248, 0.32);
+  color: #EEF2FF;
 }
 
 html.dark {
   color-scheme: dark;
-  background-color: #111113;
+  background-color: #090A0F;
 }
 
 html.dark body {
-  background-color: #111113;
-  color: #F4F3EF;
+  background-color: #090A0F;
+  color: #F8FAFC;
 }
 
 html:not(.dark) {
   color-scheme: light;
-  background-color: #FBFBF9;
+  background-color: #F1F5F9;
 }
 
 html:not(.dark) body {
-  background-color: #FBFBF9;
-  color: #18181A;
+  background-color: #F1F5F9;
+  color: #0F172A;
 }
 
-/* Warm Tactile Scrollbars with Brand Hover */
+/* Sleek Scrollbars with Electric Indigo Hover */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -67,24 +67,24 @@ html.dark ::-webkit-scrollbar-track {
   background: transparent;
 }
 html.dark ::-webkit-scrollbar-thumb {
-  background: #3A3833;
+  background: #1E2235;
   border-radius: 9999px;
   transition: background-color 0.2s ease;
 }
 html.dark ::-webkit-scrollbar-thumb:hover {
-  background: #C25E34;
+  background: #6366F1;
 }
 
 html:not(.dark) ::-webkit-scrollbar-track {
   background: transparent;
 }
 html:not(.dark) ::-webkit-scrollbar-thumb {
-  background: #DAD6CD;
+  background: #CBD5E1;
   border-radius: 9999px;
   transition: background-color 0.2s ease;
 }
 html:not(.dark) ::-webkit-scrollbar-thumb:hover {
-  background: #C25E34;
+  background: #6366F1;
 }
 
 /* Safe area insets for notches and mobile navigation */
@@ -96,13 +96,13 @@ html:not(.dark) ::-webkit-scrollbar-thumb:hover {
   padding-top: max(0.75rem, env(safe-area-inset-top));
 }
 
-/* Warm Editorial Accessible Focus Rings */
+/* Accessible Focus Rings */
 :focus-visible {
-  outline: 2px solid #C25E34;
+  outline: 2px solid #6366F1;
   outline-offset: 2px;
 }
 
-/* Overkill Web Design: Keyframe Choreography */
+/* Keyframe Choreography */
 @keyframes u-scale-in {
   0% { transform: scale(0.96) translateY(6px); opacity: 0; }
   100% { transform: scale(1) translateY(0); opacity: 1; }
@@ -141,20 +141,20 @@ html:not(.dark) ::-webkit-scrollbar-thumb:hover {
 .delay-225 { animation-delay: 225ms; }
 .delay-300 { animation-delay: 300ms; }
 
-/* Frosted Glass Surface (Warm Charcoal in Dark Mode, Warm Linen in Light) */
+/* Frosted Glass Surface (Obsidian in Dark Mode, Crisp White in Light) */
 .u-glass {
-  background: rgba(251, 251, 249, 0.84);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(20px) saturate(190%);
+  -webkit-backdrop-filter: blur(20px) saturate(190%);
 }
 
 html.dark .u-glass {
-  background: rgba(24, 24, 27, 0.84);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  background: rgba(17, 19, 31, 0.82);
+  backdrop-filter: blur(20px) saturate(190%);
+  -webkit-backdrop-filter: blur(20px) saturate(190%);
 }
 
-/* Elevated Interactive Card with Top Edge Luminescence */
+/* Elevated Interactive Card with Ultraviolet Luminescence */
 .u-card-interactive {
   position: relative;
   transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
@@ -168,7 +168,7 @@ html.dark .u-glass {
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg, rgba(194, 94, 52, 0.28), transparent 45%, rgba(217, 119, 6, 0.14));
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.38), transparent 45%, rgba(139, 92, 246, 0.22));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -201,7 +201,7 @@ html.dark .u-glass {
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 255, 255, 0.22),
+    rgba(255, 255, 255, 0.26),
     transparent
   );
   transform: skewX(-18deg);
@@ -215,18 +215,18 @@ html.dark .u-glass {
 
 /* Architectural Dot Grid Background */
 .bg-architectural-grid {
-  background-image: radial-gradient(rgba(194, 94, 52, 0.11) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(99, 102, 241, 0.14) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
 html.dark .bg-architectural-grid {
-  background-image: radial-gradient(rgba(206, 136, 95, 0.08) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(129, 140, 248, 0.1) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
 /* Subtle SVG Film Grain Overlay */
 .bg-noise-overlay {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.028'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.025'/%3E%3C/svg%3E");
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -237,4 +237,5 @@ html.dark .bg-architectural-grid {
     scroll-behavior: auto !important;
   }
 }
+
 

@@ -58,25 +58,26 @@ const MainLayout: React.FC = () => {
   });
 
   return (
-    <div className="relative min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col md:flex-row font-sans transition-colors duration-200 selection:bg-brand-500/20">
+    <div className="relative min-h-screen bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col md:flex-row font-sans transition-colors duration-200 selection:bg-brand-500/20">
       {/* Top Scroll Progress Bar */}
       <div className="fixed top-0 left-0 right-0 h-[2.5px] z-50 pointer-events-none bg-transparent">
         <div
-          className="h-full bg-gradient-to-r from-brand-500 via-warning-500 to-brand-400 transition-all duration-150 ease-out shadow-u-glow"
+          className="h-full bg-gradient-to-r from-brand-500 via-violet-500 to-emerald-400 transition-all duration-150 ease-out shadow-u-glow"
           style={{ width: `${scrollProgress}%`, opacity: scrollProgress > 1 ? 1 : 0 }}
         />
       </div>
 
-      {/* Multi-Layer Ambient Lighting & Film Grain Overlay */}
+      {/* Multi-Layer Ambient Ultraviolet & Emerald Lighting + Film Grain */}
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-        <div className="absolute -top-32 right-[8%] w-[460px] h-[460px] rounded-full bg-brand-500/[0.045] dark:bg-brand-500/[0.07] blur-[110px] animate-float-slow" />
-        <div className="absolute bottom-[-10%] left-[18%] w-[420px] h-[420px] rounded-full bg-warning-500/[0.035] dark:bg-warning-500/[0.05] blur-[110px]" />
-        <div className="absolute inset-0 bg-noise-overlay opacity-70 dark:opacity-90" />
+        <div className="absolute -top-36 right-[6%] w-[500px] h-[500px] rounded-full bg-brand-500/[0.07] dark:bg-brand-500/[0.11] blur-[120px] animate-float-slow" />
+        <div className="absolute top-[40%] left-[12%] w-[440px] h-[440px] rounded-full bg-violet-500/[0.05] dark:bg-violet-500/[0.08] blur-[120px]" />
+        <div className="absolute bottom-[-12%] right-[25%] w-[380px] h-[380px] rounded-full bg-emerald-500/[0.04] dark:bg-emerald-500/[0.06] blur-[110px]" />
+        <div className="absolute inset-0 bg-noise-overlay opacity-60 dark:opacity-80" />
       </div>
 
       <ToastContainer />
 
-      {/* iPadOS / macOS Desktop Sidebar (visible on md+) */}
+      {/* Desktop Sleek Sidebar (Linear / Arc style, visible on md+) */}
       <Sidebar
         activeTab={activeTab}
         onTabChange={handleTabChange}
@@ -84,11 +85,11 @@ const MainLayout: React.FC = () => {
         urgentPetAlert={urgentPetAlert}
       />
 
-      {/* Main Content Area */}
-      <div className="relative z-10 flex-1 flex flex-col min-w-0 min-h-screen">
+      {/* Main Content Area — Elevated "App Frame" Canvas on Desktop */}
+      <div className="relative z-10 flex-1 flex flex-col min-w-0 min-h-screen md:min-h-[calc(100vh-16px)] md:my-2 md:mr-2 md:rounded-[28px] bg-gray-50/90 dark:bg-[#0D0F18]/90 md:border md:border-gray-200/80 md:dark:border-white/[0.07] md:shadow-u-xl overflow-x-hidden">
         <Header onNavigateTab={handleTabChange} />
 
-        <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-8 xl:px-10 pt-5 pb-24 md:pb-10">
+        <main className="flex-1 w-full max-w-[1400px] mx-auto px-4 sm:px-7 xl:px-9 pt-5 pb-28 md:pb-10">
           <div key={activeTab} className="animate-view-enter">
             {activeTab === 'dashboard' && (
               <DashboardView onNavigateTab={(tab) => handleTabChange(tab)} />
@@ -102,7 +103,7 @@ const MainLayout: React.FC = () => {
         </main>
       </div>
 
-      {/* iOS Mobile Bottom Navigation Bar (visible only on mobile) */}
+      {/* Mobile Floating Pill Dock (visible only on mobile) */}
       <Navbar
         activeTab={activeTab}
         onTabChange={handleTabChange}
@@ -122,16 +123,16 @@ const AppContent: React.FC = () => {
   if (isAuthLoading) {
     return (
       <div className="relative min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col items-center justify-center p-4 overflow-hidden">
-        <div className="pointer-events-none absolute w-72 h-72 rounded-full bg-brand-500/15 blur-3xl animate-pulse" />
+        <div className="pointer-events-none absolute w-80 h-80 rounded-full bg-brand-500/20 blur-3xl animate-pulse" />
         <div className="relative flex flex-col items-center">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 text-white flex items-center justify-center shadow-u-glow-lg mb-4 animate-bounce">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 via-brand-600 to-violet-600 text-white flex items-center justify-center shadow-u-glow-lg mb-4 animate-bounce">
             <Home className="w-8 h-8 stroke-[2.2]" />
           </div>
-          <p className="text-base font-extrabold font-display tracking-tight text-gray-900 dark:text-white">
+          <p className="text-lg font-extrabold font-display tracking-tight text-gray-900 dark:text-white">
             Domus
           </p>
           <p className="text-xs font-mono uppercase tracking-widest text-brand-600 dark:text-brand-400 mt-1">
-            Sincronizando Santuário...
+            Sincronizando Hub...
           </p>
         </div>
       </div>

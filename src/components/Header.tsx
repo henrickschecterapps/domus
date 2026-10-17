@@ -53,7 +53,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
       <div className="max-w-[1440px] mx-auto w-full flex items-center justify-between gap-2">
         {/* House Info & Brand */}
         <div className="flex items-center gap-3 min-w-0">
-          <div className="md:hidden w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 text-white flex items-center justify-center shadow-u-glow flex-shrink-0">
+          <div className="md:hidden w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 via-brand-600 to-violet-600 text-white flex items-center justify-center shadow-u-glow flex-shrink-0">
             <Home className="w-5 h-5 stroke-[2.2]" />
           </div>
           <div className="min-w-0">
