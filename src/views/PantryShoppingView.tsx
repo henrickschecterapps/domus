@@ -152,7 +152,7 @@ export const PantryShoppingView: React.FC = () => {
   return (
     <div className="space-y-4 pb-20 animate-in fade-in duration-200 w-full">
       {/* Switcher Tab & Add Button */}
-      <div className="p-2 rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-u-xs flex items-center justify-between gap-3">
+      <div className="u-card-interactive p-2.5 rounded-2xl bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-200/80 dark:border-gray-800/80 shadow-u-sm flex items-center justify-between gap-3">
         <SegmentedControl
           className="flex-1"
           options={[
@@ -165,7 +165,7 @@ export const PantryShoppingView: React.FC = () => {
 
         <button
           onClick={() => setShowAddItemSheet(true)}
-          className="h-10 px-3.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white flex items-center gap-1.5 transition-all shadow-u-xs active:scale-95 flex-shrink-0 text-xs font-semibold"
+          className="u-btn-shine h-10 px-4 rounded-xl bg-gradient-to-b from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white flex items-center gap-1.5 transition-all duration-200 ease-spring shadow-u-glow hover:shadow-u-glow-lg active:scale-95 flex-shrink-0 text-xs font-bold"
           title={activeTab === 'pantry' ? 'Novo item na despensa' : 'Novo item de compra'}
         >
           <Plus className="w-4 h-4 stroke-[2.5]" />
@@ -175,26 +175,27 @@ export const PantryShoppingView: React.FC = () => {
 
       {/* SHOPPING TAB: Total Basket Forecast Banner */}
       {activeTab === 'shopping' && (
-        <div className="p-4 rounded-2xl bg-gradient-to-br from-brand-600 to-brand-800 text-white shadow-u-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-0.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-brand-200">
-              Previsão de Gastos do Supermercado
+        <div className="relative overflow-hidden p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-brand-600 via-brand-700 to-gray-900 text-white shadow-u-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-brand-500/30">
+          <div className="pointer-events-none absolute -top-16 -right-16 w-48 h-48 rounded-full bg-warning-500/20 blur-3xl" />
+          <div className="relative z-10 space-y-1">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-brand-200 block">
+              ORÇAMENTO DO CARRINHO
             </span>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold font-display tracking-tight text-white">
+            <div className="flex items-baseline gap-2.5">
+              <span className="text-2xl sm:text-3xl font-extrabold font-display tracking-tight text-white">
                 {formatCurrencyBRL(totalBasketForecast)}
               </span>
-              <span className="text-xs text-brand-200">
-                ({shoppingItems.length} itens no total)
+              <span className="text-xs font-mono text-brand-200">
+                ({shoppingItems.length} itens)
               </span>
             </div>
-            <p className="text-[11px] text-brand-100/90">
-              Já no carrinho: <strong className="text-white font-semibold">{formatCurrencyBRL(boughtBasketTotal)}</strong> ({boughtCount} de {shoppingItems.length})
+            <p className="text-xs text-brand-100/90">
+              Já no carrinho: <strong className="text-white font-bold font-mono">{formatCurrencyBRL(boughtBasketTotal)}</strong> ({boughtCount} de {shoppingItems.length})
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Badge variant="brand" size="md">
+          <div className="relative z-10 flex items-center gap-2">
+            <Badge variant="brand" size="md" dot>
               {pendingShoppingCount} a comprar
             </Badge>
           </div>

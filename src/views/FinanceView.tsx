@@ -447,17 +447,23 @@ export const FinanceView: React.FC = () => {
   return (
     <div className="space-y-5 pb-20 animate-in fade-in duration-200 w-full">
       {/* Top Header Actions (Nova Despesa, Exportar CSV, Relatório, Ajustar Teto) */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="u-card-interactive p-5 sm:p-6 rounded-2xl bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-200/80 dark:border-gray-800/80 shadow-u-sm flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold font-display text-gray-900 dark:text-white">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-brand-50 dark:bg-brand-950/70 border border-brand-200/60 dark:border-brand-800/50 mb-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse" />
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-brand-700 dark:text-brand-300">
+              GESTÃO PATRIMONIAL & RATEIO
+            </span>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-extrabold font-display tracking-tight text-gray-900 dark:text-white">
             Finanças & Orçamento
           </h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Divisão inteligente, limites mensais e cobranças via PIX
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            Divisão inteligente de contas fixas e variáveis, vencimentos e cobranças via PIX
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="secondary"
             size="sm"

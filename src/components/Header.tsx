@@ -49,16 +49,16 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 sm:px-8 py-3 safe-top w-full transition-colors">
-      <div className="w-full flex items-center justify-between">
+    <header className="sticky top-0 z-30 u-glass border-b border-gray-200/80 dark:border-gray-800/80 px-4 sm:px-8 py-3 safe-top w-full transition-all">
+      <div className="max-w-[1440px] mx-auto w-full flex items-center justify-between gap-2">
         {/* House Info & Brand */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800/40 text-brand-600 dark:text-brand-400 flex items-center justify-center shadow-u-xs">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="md:hidden w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 text-white flex items-center justify-center shadow-u-glow flex-shrink-0">
             <Home className="w-5 h-5 stroke-[2.2]" />
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold text-gray-900 dark:text-white tracking-tight leading-none">
+              <h1 className="text-base sm:text-lg font-extrabold font-display text-gray-900 dark:text-white tracking-tight leading-none truncate">
                 {house.name}
               </h1>
               {isFirebaseConnected ? (
@@ -73,36 +73,43 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
             </div>
             <button
               onClick={copyInvite}
-              className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 transition-colors mt-1"
+              className="group inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 transition-colors mt-1"
               title="Copiar código de convite da casa"
             >
-              <span>Convite: <span className="font-mono font-medium text-gray-700 dark:text-gray-300">{house.inviteCode}</span></span>
-              {copied ? <Check className="w-3.5 h-3.5 text-success-600" /> : <Copy className="w-3.5 h-3.5 text-gray-400" />}
+              <span>Convite:</span>
+              <span className="font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded-md bg-gray-100/90 dark:bg-gray-800/90 text-gray-700 dark:text-gray-300 group-hover:bg-brand-50 dark:group-hover:bg-brand-950/60 group-hover:text-brand-700 dark:group-hover:text-brand-300 border border-gray-200/60 dark:border-gray-700/60 transition-colors">
+                {house.inviteCode}
+              </span>
+              {copied ? (
+                <Check className="w-3.5 h-3.5 text-success-600 animate-u-scale" />
+              ) : (
+                <Copy className="w-3.5 h-3.5 text-gray-400 group-hover:text-brand-500 transition-colors" />
+              )}
             </button>
           </div>
         </div>
 
         {/* Tools & Resident Switcher */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 sm:gap-2.5 flex-shrink-0">
           {/* Explicit Claro / Escuro Dual Toggle */}
-          <div className="flex items-center p-0.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-u-xs">
+          <div className="flex items-center p-0.5 rounded-xl border border-gray-200/80 dark:border-gray-800 bg-gray-100/70 dark:bg-gray-900/90 shadow-u-xs">
             <button
               onClick={() => setTheme('light')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200 ${
                 !isDarkActive
-                  ? 'bg-brand-50 text-brand-800 dark:bg-brand-900/40 dark:text-brand-200 font-semibold shadow-xs'
+                  ? 'bg-white text-brand-700 dark:bg-brand-900/40 dark:text-brand-200 font-semibold shadow-u-xs'
                   : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}
               title="Ativar Modo Claro"
             >
-              <Sun className={`w-3.5 h-3.5 ${!isDarkActive ? 'text-brand-600 dark:text-brand-400' : 'text-gray-400'}`} />
+              <Sun className={`w-3.5 h-3.5 ${!isDarkActive ? 'text-warning-500' : 'text-gray-400'}`} />
               <span className="hidden sm:inline">Claro</span>
             </button>
             <button
               onClick={() => setTheme('dark')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200 ${
                 isDarkActive
-                  ? 'bg-gray-800 text-gray-100 shadow-xs font-semibold'
+                  ? 'bg-gray-800 text-gray-100 shadow-u-xs font-semibold'
                   : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}
               title="Ativar Modo Escuro"
@@ -116,7 +123,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
           {onNavigateTab && (
             <button
               onClick={() => onNavigateTab('admin')}
-              className="w-9 h-9 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400 flex items-center justify-center transition-all active:scale-95 shadow-u-xs"
+              className="w-9 h-9 rounded-xl bg-white dark:bg-gray-800/90 border border-gray-200/80 dark:border-gray-700/80 text-gray-500 hover:text-brand-600 hover:border-brand-300 dark:text-gray-400 dark:hover:text-brand-400 flex items-center justify-center transition-all duration-200 active:scale-95 shadow-u-xs"
               title="Gestão da Casa & Acesso (Admin)"
             >
               <ShieldCheck className="w-4 h-4" />
@@ -127,13 +134,13 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
           <div className="relative">
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-2.5 p-1 pl-3 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/60 border border-gray-200 dark:border-gray-700 rounded-lg transition-all active:scale-95 shadow-u-xs h-9"
+              className="flex items-center gap-2.5 p-1 pl-3 bg-white dark:bg-gray-800/90 hover:bg-gray-50 dark:hover:bg-gray-700/60 border border-gray-200/80 dark:border-gray-700/80 hover:border-brand-300/60 dark:hover:border-brand-700/60 rounded-xl transition-all duration-200 active:scale-95 shadow-u-xs h-9"
             >
               <div className="flex flex-col text-right">
-                <span className="text-xs font-semibold text-gray-800 dark:text-gray-200 max-w-[100px] truncate leading-tight">
+                <span className="text-xs font-bold text-gray-800 dark:text-gray-200 max-w-[100px] truncate leading-tight">
                   {currentUser.displayName}
                 </span>
-                <span className="text-[9px] text-brand-600 dark:text-brand-400 font-medium">
+                <span className="text-[9px] font-mono uppercase tracking-wider text-brand-600 dark:text-brand-400 font-semibold">
                   {currentUser.role === 'admin' ? 'Admin' : 'Morador'}
                 </span>
               </div>
@@ -141,22 +148,28 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
                 <img
                   src={currentUser.avatarUrl || authUser?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(currentUser.displayName)}`}
                   alt={currentUser.displayName}
-                  className="w-7 h-7 rounded-full object-cover ring-2 ring-brand-500/30"
+                  className="w-7 h-7 rounded-lg object-cover ring-2 ring-brand-500/30"
                 />
-                <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-success-500 ring-1 ring-white dark:ring-gray-900" />
+                <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-success-500 ring-1 ring-white dark:ring-gray-900" />
               </div>
             </button>
 
             {showUserMenu && (
-              <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-u-xl py-2 z-50 animate-u-scale">
-                {/* User Info Header */}
-                <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-xs font-bold text-gray-900 dark:text-white">Perfil do Usuário</p>
-                    <span className="text-[10px] font-semibold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/70 px-2 py-0.5 rounded-full border border-brand-200/50 dark:border-brand-800/50">
-                      {currentUser.role === 'admin' ? 'Administrador' : 'Morador'}
-                    </span>
-                  </div>
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowUserMenu(false)}
+                />
+                <div className="absolute right-0 mt-2 w-72 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border border-gray-200/90 dark:border-gray-800 rounded-2xl shadow-u-xl py-2 z-50 animate-u-scale">
+                  {/* User Info Header */}
+                  <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs font-bold text-gray-900 dark:text-white">Perfil do Usuário</p>
+                      <span className="text-[10px] font-mono font-semibold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/70 px-2 py-0.5 rounded-full border border-brand-200/50 dark:border-brand-800/50">
+                        {currentUser.role === 'admin' ? 'Administrador' : 'Morador'}
+                      </span>
+                    </div>
+
                   <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">
                     {currentUser.displayName}
                   </p>
@@ -270,6 +283,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
                   </button>
                 </div>
               </div>
+              </>
             )}
           </div>
         </div>

@@ -94,33 +94,38 @@ export const LoginScreen: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-sand-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col justify-center items-center px-4 py-8 sm:p-6 transition-colors duration-200">
-      {/* Background ambient lighting */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-brand-500/10 blur-3xl" />
-        <div className="absolute top-1/2 -right-32 w-96 h-96 rounded-full bg-sand-500/10 blur-3xl" />
-        <div className="absolute -bottom-32 left-1/3 w-96 h-96 rounded-full bg-brand-500/10 blur-3xl" />
+    <div className="relative min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col justify-center items-center px-4 py-8 sm:p-6 transition-colors duration-200 overflow-hidden">
+      {/* Multi-Layer Ambient Lighting & Noise Texture */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-brand-500/15 dark:bg-brand-500/15 blur-[110px] animate-float-slow" />
+        <div className="absolute top-1/2 -right-32 w-96 h-96 rounded-full bg-warning-500/10 dark:bg-warning-500/10 blur-[110px]" />
+        <div className="absolute -bottom-32 left-1/3 w-96 h-96 rounded-full bg-brand-500/10 blur-[110px]" />
+        <div className="absolute inset-0 bg-architectural-grid opacity-60" />
+        <div className="absolute inset-0 bg-noise-overlay opacity-80" />
       </div>
 
-      <div className="w-full max-w-xl z-10 space-y-6">
+      <div className="w-full max-w-xl z-10 space-y-6 animate-view-enter">
         {/* Brand Header */}
         <div className="text-center space-y-3">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-50 dark:bg-brand-950/70 border border-brand-200/80 dark:border-brand-800 text-brand-700 dark:text-brand-300 text-xs font-semibold shadow-u-xs">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-50/90 dark:bg-brand-950/80 border border-brand-200/80 dark:border-brand-800/80 text-brand-700 dark:text-brand-300 text-xs font-mono font-bold uppercase tracking-wider shadow-u-xs">
             <Sparkles className="w-3.5 h-3.5 text-brand-500 animate-pulse" />
             <span>Domus • Gestão Inteligente do Lar</span>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl font-extrabold font-display tracking-tight text-gray-900 dark:text-white">
-            O lar perfeito, em harmonia diária.
+          <h1 className="text-3xl sm:text-5xl font-extrabold font-display tracking-tight text-gray-900 dark:text-white leading-[1.08]">
+            O lar perfeito, em{' '}
+            <span className="bg-gradient-to-r from-brand-500 via-brand-600 to-warning-600 dark:from-brand-400 dark:via-brand-300 dark:to-warning-400 bg-clip-text text-transparent">
+              harmonia diária.
+            </span>
           </h1>
 
-          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 max-w-md mx-auto leading-relaxed">
             Tarefas gamificadas, divisão financeira transparente, cuidados dos pets e sincronização em tempo real na nuvem.
           </p>
         </div>
 
         {/* Auth Box / Onboarding Box */}
-        <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200/90 dark:border-gray-800 p-6 sm:p-8 shadow-u-xl relative overflow-hidden backdrop-blur-md">
+        <div className="u-card-interactive bg-white/95 dark:bg-gray-900/95 rounded-3xl border border-gray-200/90 dark:border-gray-800 p-6 sm:p-8 shadow-u-xl relative overflow-hidden backdrop-blur-xl">
           {errorMessage && (
             <div className="mb-6 p-4 rounded-xl bg-error-50 dark:bg-error-950/50 border border-error-200 dark:border-error-800 flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-error-600 dark:text-error-400 flex-shrink-0 mt-0.5" />
@@ -134,8 +139,8 @@ export const LoginScreen: React.FC = () => {
           {!authUser ? (
             /* STEP 1: LOGIN WITH GOOGLE */
             <div className="space-y-6">
-              <div className="space-y-2 text-center">
-                <h2 className="text-xl font-bold font-display text-gray-900 dark:text-white">
+              <div className="space-y-1.5 text-center">
+                <h2 className="text-xl font-extrabold font-display text-gray-900 dark:text-white">
                   Acesse ou Crie seu Lar
                 </h2>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -147,7 +152,7 @@ export const LoginScreen: React.FC = () => {
               <button
                 onClick={handleGoogleLogin}
                 disabled={isLoading}
-                className="w-full flex items-center justify-center gap-3 px-5 py-3.5 rounded-xl bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 hover:border-brand-500 dark:hover:border-brand-500 text-gray-800 dark:text-gray-100 font-semibold text-sm transition-all duration-200 shadow-u-sm hover:shadow-u-md active:scale-[0.99] disabled:opacity-50"
+                className="u-btn-shine w-full flex items-center justify-center gap-3 px-5 py-3.5 rounded-2xl bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 hover:border-brand-500 dark:hover:border-brand-500 text-gray-800 dark:text-gray-100 font-bold text-sm transition-all duration-200 ease-spring shadow-u-sm hover:shadow-u-card-hover hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-50"
               >
                 {isLoading ? (
                   <Loader2 className="w-5 h-5 animate-spin text-brand-600" />
@@ -176,42 +181,42 @@ export const LoginScreen: React.FC = () => {
 
               {/* Features summary */}
               <div className="grid grid-cols-2 gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
-                <div className="p-3 rounded-xl bg-sand-50/70 dark:bg-gray-800/50 border border-sand-100 dark:border-gray-800/80">
+                <div className="p-3.5 rounded-2xl bg-gray-50/90 dark:bg-gray-800/50 border border-gray-200/60 dark:border-gray-800/80 hover:border-brand-300/60 transition-colors">
                   <div className="flex items-center gap-2 mb-1">
                     <CheckCircle2 className="w-4 h-4 text-brand-600 dark:text-brand-400" />
                     <span className="text-xs font-bold text-gray-900 dark:text-white">Gamificação</span>
                   </div>
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
                     Pontos XP por tarefas concluídas e ranking semanal.
                   </p>
                 </div>
 
-                <div className="p-3 rounded-xl bg-sand-50/70 dark:bg-gray-800/50 border border-sand-100 dark:border-gray-800/80">
+                <div className="p-3.5 rounded-2xl bg-gray-50/90 dark:bg-gray-800/50 border border-gray-200/60 dark:border-gray-800/80 hover:border-brand-300/60 transition-colors">
                   <div className="flex items-center gap-2 mb-1">
-                    <Cat className="w-4 h-4 text-sand-600 dark:text-sand-400" />
+                    <Cat className="w-4 h-4 text-warning-600 dark:text-warning-400" />
                     <span className="text-xs font-bold text-gray-900 dark:text-white">Área Pet</span>
                   </div>
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
                     Rotatividade de turnos, vacinas e alertas de ração.
                   </p>
                 </div>
 
-                <div className="p-3 rounded-xl bg-sand-50/70 dark:bg-gray-800/50 border border-sand-100 dark:border-gray-800/80">
+                <div className="p-3.5 rounded-2xl bg-gray-50/90 dark:bg-gray-800/50 border border-gray-200/60 dark:border-gray-800/80 hover:border-brand-300/60 transition-colors">
                   <div className="flex items-center gap-2 mb-1">
-                    <Wallet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <Wallet className="w-4 h-4 text-success-600 dark:text-success-400" />
                     <span className="text-xs font-bold text-gray-900 dark:text-white">Finanças</span>
                   </div>
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                    Rateio flexível e geração de QR Code PIX direto.
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
+                    Rateio flexível, alertas de atraso e QR Code PIX direto.
                   </p>
                 </div>
 
-                <div className="p-3 rounded-xl bg-sand-50/70 dark:bg-gray-800/50 border border-sand-100 dark:border-gray-800/80">
+                <div className="p-3.5 rounded-2xl bg-gray-50/90 dark:bg-gray-800/50 border border-gray-200/60 dark:border-gray-800/80 hover:border-brand-300/60 transition-colors">
                   <div className="flex items-center gap-2 mb-1">
-                    <ShieldCheck className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                    <ShieldCheck className="w-4 h-4 text-brand-600 dark:text-brand-400" />
                     <span className="text-xs font-bold text-gray-900 dark:text-white">Cloud Firebase</span>
                   </div>
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
                     Backup contínuo e sincronização instantânea.
                   </p>
                 </div>
@@ -222,7 +227,7 @@ export const LoginScreen: React.FC = () => {
                 <button
                   type="button"
                   onClick={bypassAuthToDemo}
-                  className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 underline transition-colors"
+                  className="text-xs text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 underline underline-offset-4 transition-colors"
                 >
                   Entrar no Modo Demonstração Offline
                 </button>

@@ -10,6 +10,7 @@ export default {
       fontFamily: {
         sans: ['DM Sans', 'system-ui', '-apple-system', 'sans-serif'],
         display: ['Outfit', 'DM Sans', 'sans-serif'],
+        mono: ['JetBrains Mono', 'Fira Code', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       colors: {
         // Warm Editorial Sanctuary: Terracotta & Raw Earth Core
@@ -112,15 +113,22 @@ export default {
         'ios-xl': '24px',
       },
       boxShadow: {
-        'u-xs': '0px 1px 2px rgba(16, 24, 40, 0.05)',
-        'u-sm': '0px 1px 3px rgba(16, 24, 40, 0.1), 0px 1px 2px rgba(16, 24, 40, 0.06)',
-        'u-md': '0px 4px 8px -2px rgba(16, 24, 40, 0.1), 0px 2px 4px -2px rgba(16, 24, 40, 0.06)',
-        'u-lg': '0px 12px 16px -4px rgba(16, 24, 40, 0.08), 0px 4px 6px -2px rgba(16, 24, 40, 0.03)',
-        'u-xl': '0px 20px 24px -4px rgba(16, 24, 40, 0.08), 0px 8px 8px -4px rgba(16, 24, 40, 0.03)',
-        'ios-card': '0 1px 3px rgba(16, 24, 40, 0.06), 0 1px 2px rgba(16, 24, 40, 0.04)',
-        'ios-elevated': '0 10px 15px -3px rgba(16, 24, 40, 0.06), 0 4px 6px -4px rgba(16, 24, 40, 0.04)',
-        'ios-sheet': '0 -8px 30px rgba(0, 0, 0, 0.12)',
-      }
+        'u-xs': '0px 1px 2px rgba(24, 24, 26, 0.05), inset 0px 1px 0px rgba(255, 255, 255, 0.5)',
+        'u-sm': '0px 2px 4px -1px rgba(24, 24, 26, 0.07), 0px 1px 2px -1px rgba(24, 24, 26, 0.04), inset 0px 1px 0px rgba(255, 255, 255, 0.6)',
+        'u-md': '0px 6px 14px -3px rgba(24, 24, 26, 0.09), 0px 2px 6px -2px rgba(24, 24, 26, 0.05), inset 0px 1px 0px rgba(255, 255, 255, 0.6)',
+        'u-lg': '0px 14px 24px -4px rgba(24, 24, 26, 0.1), 0px 4px 8px -2px rgba(24, 24, 26, 0.04), inset 0px 1px 0px rgba(255, 255, 255, 0.5)',
+        'u-xl': '0px 24px 36px -6px rgba(24, 24, 26, 0.14), 0px 8px 12px -4px rgba(24, 24, 26, 0.05)',
+        'u-glow': '0px 4px 20px -2px rgba(194, 94, 52, 0.35), 0px 2px 6px -1px rgba(194, 94, 52, 0.2), inset 0px 1px 0px rgba(255, 255, 255, 0.25)',
+        'u-glow-lg': '0px 8px 30px -4px rgba(194, 94, 52, 0.45), 0px 4px 12px -2px rgba(217, 119, 6, 0.25), inset 0px 1px 0px rgba(255, 255, 255, 0.3)',
+        'u-card-hover': '0px 12px 28px -6px rgba(194, 94, 52, 0.12), 0px 4px 10px -2px rgba(24, 24, 26, 0.06)',
+        'ios-card': '0 1px 3px rgba(24, 24, 26, 0.06), 0 1px 2px rgba(24, 24, 26, 0.04)',
+        'ios-elevated': '0 10px 15px -3px rgba(24, 24, 26, 0.06), 0 4px 6px -4px rgba(24, 24, 26, 0.04)',
+        'ios-sheet': '0 -8px 30px rgba(0, 0, 0, 0.16)',
+      },
+      transitionTimingFunction: {
+        'spring': 'cubic-bezier(0.16, 1, 0.3, 1)',
+        'out-expo': 'cubic-bezier(0.19, 1, 0.22, 1)',
+      },
     },
   },
   plugins: [],

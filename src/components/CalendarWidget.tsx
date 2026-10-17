@@ -51,48 +51,50 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({ onOpenFullCalend
   };
 
   return (
-    <div className="rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-5 shadow-u-xs transition-colors">
+    <div className="u-card-interactive rounded-2xl bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-200/80 dark:border-gray-800/80 p-5 shadow-u-sm hover:shadow-u-card-hover transition-all">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100 dark:border-gray-800/80">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-brand-50 dark:bg-brand-950/60 border border-brand-100 dark:border-brand-900/30 text-brand-600 dark:text-brand-400 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-xl bg-brand-50 dark:bg-brand-950/60 border border-brand-100 dark:border-brand-900/30 text-brand-600 dark:text-brand-400 flex items-center justify-center shadow-u-xs">
             <CalendarIcon className="w-4 h-4 stroke-[2.2]" />
           </div>
           <div>
-            <h2 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-brand-600 dark:text-brand-400 block leading-none mb-0.5">
+              PRÓXIMOS 7 DIAS
+            </span>
+            <h2 className="text-xs font-extrabold text-gray-900 dark:text-white uppercase tracking-wider font-display">
               Agenda & Compromissos
             </h2>
-            <p className="text-[11px] text-gray-500 dark:text-gray-400">Próximos 7 dias sincronizados</p>
           </div>
         </div>
 
         <button
           onClick={onOpenFullCalendar}
-          className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 flex items-center gap-0.5 transition-colors"
+          className="text-xs font-bold text-brand-600 dark:text-brand-400 hover:text-brand-700 px-2.5 py-1 rounded-xl hover:bg-brand-50 dark:hover:bg-brand-950/50 flex items-center gap-0.5 transition-colors"
         >
-          <span>Ver Completa</span>
+          <span>Completa</span>
           <ChevronRight className="w-3.5 h-3.5" />
         </button>
       </div>
 
       {/* 7-Day Untitled UI Calendar Strip */}
-      <div className="grid grid-cols-7 gap-1 p-1 bg-gray-50 dark:bg-gray-800/60 rounded-xl border border-gray-200/60 dark:border-gray-700/60 mb-4">
+      <div className="grid grid-cols-7 gap-1 p-1 bg-gray-100/80 dark:bg-gray-800/70 rounded-2xl border border-gray-200/60 dark:border-gray-700/60 mb-4">
         {days.map((d) => {
           const isSelected = d.offset === selectedDayOffset;
           return (
             <button
               key={d.offset}
               onClick={() => setSelectedDayOffset(d.offset)}
-              className={`flex flex-col items-center py-2 rounded-lg transition-all duration-150 ${
+              className={`flex flex-col items-center py-2 rounded-xl transition-all duration-200 ease-spring ${
                 isSelected
-                  ? 'bg-brand-600 text-white shadow-u-xs font-bold'
+                  ? 'bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow-u-glow font-bold scale-[1.02]'
                   : 'text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-700/60'
               }`}
             >
-              <span className="text-[10px] uppercase font-semibold tracking-tighter opacity-80">
+              <span className="text-[10px] font-mono uppercase font-bold tracking-tighter opacity-85">
                 {d.dayName}
               </span>
-              <span className="text-sm font-bold mt-0.5">{d.dayNumber}</span>
+              <span className="text-sm font-extrabold font-display mt-0.5">{d.dayNumber}</span>
               <div className="flex gap-0.5 mt-1 h-1.5 items-center justify-center">
                 {d.eventCount > 0 && (
                   <span
@@ -110,7 +112,7 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({ onOpenFullCalend
       {/* Selected Day Agenda Items */}
       <div className="space-y-2.5">
         {selectedDay.events.length === 0 ? (
-          <div className="py-6 text-center text-gray-400">
+          <div className="py-7 text-center text-gray-400 rounded-xl bg-gray-50/70 dark:bg-gray-800/30 border border-dashed border-gray-200/70 dark:border-gray-700/60">
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
               Nenhum compromisso marcado para {selectedDay.dayName.toLowerCase()}.
             </p>

@@ -52,7 +52,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   ];
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 safe-bottom shadow-u-lg">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 u-glass border-t border-gray-200/80 dark:border-gray-800/80 safe-bottom shadow-ios-sheet">
       <div className="max-w-md mx-auto px-2 flex justify-between items-center h-16">
         {tabs.map((tab) => {
           const Icon = tab.icon;
@@ -62,21 +62,28 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
-              className={`relative flex flex-col items-center justify-center flex-1 h-full py-1 min-touch-target transition-all duration-150 active:scale-95 ${
+              className={`relative flex flex-col items-center justify-center flex-1 h-full py-1 min-touch-target transition-all duration-200 ease-spring active:scale-90 ${
                 isActive
-                  ? 'text-brand-600 dark:text-brand-400 font-semibold'
+                  ? 'text-brand-600 dark:text-brand-400 font-bold'
                   : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 font-medium'
               }`}
             >
-              <div className="relative">
+              {isActive && (
+                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-7 h-0.5 rounded-b-full bg-brand-500 shadow-u-glow" />
+              )}
+              <div
+                className={`relative px-3 py-1 rounded-xl transition-all duration-200 ease-spring ${
+                  isActive ? 'bg-brand-50/90 dark:bg-brand-950/70' : ''
+                }`}
+              >
                 <Icon
-                  className={`w-5 h-5 transition-transform duration-150 ${
-                    isActive ? 'scale-110 stroke-[2.2]' : 'stroke-[1.8]'
+                  className={`w-5 h-5 transition-transform duration-200 ease-spring ${
+                    isActive ? 'scale-110 stroke-[2.3]' : 'stroke-[1.8]'
                   }`}
                 />
                 {tab.badge !== null && (
                   <span
-                    className={`absolute -top-1 -right-2.5 min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold flex items-center justify-center shadow-u-xs ring-1 ring-white dark:ring-gray-900 ${
+                    className={`absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold flex items-center justify-center shadow-u-xs ring-2 ring-white dark:ring-gray-900 ${
                       tab.badgeColor || 'bg-error-500 text-white'
                     }`}
                   >
@@ -84,7 +91,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </span>
                 )}
               </div>
-              <span className="text-[10px] mt-1 tracking-tight font-medium">{tab.label}</span>
+              <span className="text-[10px] mt-0.5 tracking-tight">{tab.label}</span>
             </button>
           );
         })}
@@ -92,3 +99,4 @@ export const Navbar: React.FC<NavbarProps> = ({
     </nav>
   );
 };
+

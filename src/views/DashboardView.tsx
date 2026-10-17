@@ -190,26 +190,34 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
         <div className="lg:col-span-4 space-y-4">
           {/* Wi-Fi Card */}
           {house.wifiSsid && (
-            <div className="p-4 rounded-2xl bg-white dark:bg-gray-900 border border-sand-200 dark:border-gray-800 shadow-u-xs space-y-3">
-              <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-2.5">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-brand-50 dark:bg-brand-950/70 text-brand-600 dark:text-brand-400 flex items-center justify-center">
-                    <Wifi className="w-3.5 h-3.5" />
+            <div className="u-card-interactive p-5 rounded-2xl bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-200/80 dark:border-gray-800/80 shadow-u-sm hover:shadow-u-card-hover space-y-3.5">
+              <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800/80 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-brand-50 dark:bg-brand-950/70 border border-brand-100 dark:border-brand-900/40 text-brand-600 dark:text-brand-400 flex items-center justify-center shadow-u-xs">
+                    <Wifi className="w-4 h-4" />
                   </div>
-                  <h4 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider font-display">
-                    Wi-Fi da Casa
-                  </h4>
+                  <div>
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-brand-600 dark:text-brand-400 block leading-none mb-0.5">
+                      CONECTIVIDADE
+                    </span>
+                    <h4 className="text-xs font-extrabold text-gray-900 dark:text-white uppercase tracking-wider font-display">
+                      Wi-Fi da Casa
+                    </h4>
+                  </div>
                 </div>
-                <Badge variant="brand" size="sm">Visitas & Moradores</Badge>
+                <Badge variant="brand" size="sm">Visitas</Badge>
               </div>
 
-              <div>
-                <p className="text-xs font-bold text-gray-900 dark:text-white truncate">
-                  {house.wifiSsid}
-                </p>
-                <p className="text-[11px] text-gray-400 font-mono mt-0.5">
-                  ••••••••••••
-                </p>
+              <div className="p-3 rounded-xl bg-gray-50/90 dark:bg-gray-800/50 border border-gray-200/60 dark:border-gray-700/50 flex items-center justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-gray-900 dark:text-white truncate">
+                    {house.wifiSsid}
+                  </p>
+                  <p className="text-[11px] text-gray-400 font-mono tracking-widest mt-0.5">
+                    ••••••••••••
+                  </p>
+                </div>
+                <span className="w-2 h-2 rounded-full bg-success-500 animate-pulse flex-shrink-0" title="Rede ativa" />
               </div>
 
               <Button
@@ -226,30 +234,37 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
 
           {/* Quick Emergency Contacts */}
           {(house.emergencyContacts || []).length > 0 && (
-            <div className="p-4 rounded-2xl bg-white dark:bg-gray-900 border border-sand-200 dark:border-gray-800 shadow-u-xs space-y-3">
-              <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-2.5">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-error-50 dark:bg-error-950/70 text-error-600 dark:text-error-400 flex items-center justify-center">
-                    <Phone className="w-3.5 h-3.5" />
+            <div className="u-card-interactive p-5 rounded-2xl bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-200/80 dark:border-gray-800/80 shadow-u-sm hover:shadow-u-card-hover space-y-3.5">
+              <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800/80 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-error-50 dark:bg-error-950/70 border border-error-100 dark:border-error-900/40 text-error-600 dark:text-error-400 flex items-center justify-center shadow-u-xs">
+                    <Phone className="w-4 h-4" />
                   </div>
-                  <h4 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider font-display">
-                    Emergência & Portaria
-                  </h4>
+                  <div>
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-error-600 dark:text-error-400 block leading-none mb-0.5">
+                      ACIONAMENTO RÁPIDO
+                    </span>
+                    <h4 className="text-xs font-extrabold text-gray-900 dark:text-white uppercase tracking-wider font-display">
+                      Emergência & Portaria
+                    </h4>
+                  </div>
                 </div>
-                <span className="text-[10px] text-gray-400">1-clique</span>
+                <span className="text-[10px] font-mono font-semibold text-gray-400 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800">
+                  1-CLIQUE
+                </span>
               </div>
 
               <div className="space-y-2">
                 {(house.emergencyContacts || []).slice(0, 3).map((contact) => (
                   <div
                     key={contact.id}
-                    className="p-2.5 rounded-xl bg-sand-50/50 dark:bg-gray-800/40 border border-sand-200/60 dark:border-gray-800 flex items-center justify-between"
+                    className="p-2.5 rounded-xl bg-gray-50/90 dark:bg-gray-800/50 border border-gray-200/60 dark:border-gray-700/60 hover:border-brand-300/60 dark:hover:border-brand-700/60 transition-colors flex items-center justify-between"
                   >
                     <div className="min-w-0 pr-2">
                       <p className="text-xs font-bold text-gray-900 dark:text-white truncate">
                         {contact.name}
                       </p>
-                      <span className="text-[10px] text-gray-500 font-mono">
+                      <span className="text-[10px] text-gray-500 dark:text-gray-400 font-mono">
                         {contact.phone}
                       </span>
                     </div>
@@ -280,16 +295,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
         </div>
 
         {/* Mural da Geladeira - Recados Digitais (8 cols) */}
-        <div className="lg:col-span-8 p-5 rounded-2xl bg-white dark:bg-gray-900 border border-sand-200 dark:border-gray-800 shadow-u-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/70 border border-amber-200/60 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+        <div className="lg:col-span-8 u-card-interactive p-5 sm:p-6 rounded-2xl bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-200/80 dark:border-gray-800/80 shadow-u-sm hover:shadow-u-card-hover space-y-4 bg-architectural-grid">
+          <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800/80 pb-3.5 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xs rounded-xl px-2 -mx-2">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/70 border border-amber-200/60 dark:border-amber-800/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shadow-u-xs">
                 <StickyNote className="w-4 h-4 stroke-[2.2]" />
               </div>
               <div>
-                <h3 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider font-display">
-                  Mural da Geladeira
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs sm:text-sm font-extrabold text-gray-900 dark:text-white uppercase tracking-wider font-display">
+                    Mural da Geladeira
+                  </h3>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40">
+                    {sortedNotes.length} {sortedNotes.length === 1 ? 'NOTA' : 'NOTAS'}
+                  </span>
+                </div>
                 <p className="text-[11px] text-gray-500 dark:text-gray-400">
                   Recados magnéticos, avisos rápidos e carinho da casa
                 </p>
@@ -300,7 +320,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
               variant="secondary"
               size="sm"
               onClick={() => setShowAddNoteModal(true)}
-              className="flex items-center gap-1.5 text-xs py-1 px-3"
+              className="flex items-center gap-1.5 text-xs py-1.5 px-3"
             >
               <Plus className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
               <span>Colar Recado</span>
@@ -308,55 +328,62 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
           </div>
 
           {sortedNotes.length === 0 ? (
-            <div className="py-8 text-center rounded-xl bg-sand-50/40 dark:bg-gray-800/30 border border-dashed border-sand-200 dark:border-gray-800">
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                O mural está limpinho! Deixe um recado carinhoso ou aviso para quem passar pela cozinha.
+            <div className="py-10 px-4 text-center rounded-2xl bg-gray-50/80 dark:bg-gray-800/40 border border-dashed border-gray-200 dark:border-gray-700/80">
+              <StickyNote className="w-7 h-7 text-amber-500/60 mx-auto mb-2" />
+              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                O mural está limpinho!
+              </p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                Deixe um recado carinhoso ou aviso importante para quem passar pela cozinha.
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
               {sortedNotes.map((note) => {
                 const colorConfig = NOTE_COLORS[note.color] || NOTE_COLORS.yellow;
 
                 return (
                   <div
                     key={note.id}
-                    className={`p-3.5 rounded-xl border shadow-xs flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 ${colorConfig.bg} ${colorConfig.border} ${colorConfig.text}`}
+                    className={`group/note relative p-4 rounded-2xl border shadow-u-xs hover:shadow-u-md flex flex-col justify-between transition-all duration-200 ease-spring hover:-translate-y-1 ${colorConfig.bg} ${colorConfig.border} ${colorConfig.text}`}
                   >
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-bold opacity-75">
+                    {/* Magnetic Pin Top Indicator */}
+                    <div className="flex items-center justify-between mb-2.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className={`w-2 h-2 rounded-full ${colorConfig.dot} flex-shrink-0`} />
+                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider opacity-80 truncate">
                           {note.authorName}
                         </span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => togglePinHouseNote(note.id)}
-                            className={`p-1 rounded transition-colors ${
-                              note.isPinned
-                                ? 'text-amber-600 dark:text-amber-400 font-bold'
-                                : 'opacity-40 hover:opacity-100'
-                            }`}
-                            title={note.isPinned ? 'Desafixar' : 'Fixar no topo'}
-                          >
-                            <Pin className="w-3 h-3 fill-current" />
-                          </button>
-                          <button
-                            onClick={() => deleteHouseNote(note.id)}
-                            className="p-1 opacity-40 hover:opacity-100 hover:text-error-600 rounded transition-colors"
-                            title="Remover recado"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
                       </div>
-
-                      <p className="text-xs leading-relaxed whitespace-pre-wrap font-medium">
-                        {note.content}
-                      </p>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => togglePinHouseNote(note.id)}
+                          className={`p-1 rounded-lg transition-colors ${
+                            note.isPinned
+                              ? 'text-amber-600 dark:text-amber-400 font-bold bg-black/5 dark:bg-white/10'
+                              : 'opacity-40 hover:opacity-100'
+                          }`}
+                          title={note.isPinned ? 'Desafixar' : 'Fixar no topo'}
+                        >
+                          <Pin className="w-3 h-3 fill-current" />
+                        </button>
+                        <button
+                          onClick={() => deleteHouseNote(note.id)}
+                          className="p-1 opacity-40 hover:opacity-100 hover:text-error-600 rounded-lg transition-colors"
+                          title="Remover recado"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="pt-2 text-[9px] opacity-60 flex justify-end">
-                      {new Date(note.createdAt).toLocaleDateString('pt-BR')}
+                    <p className="text-xs leading-relaxed whitespace-pre-wrap font-medium mb-3">
+                      {note.content}
+                    </p>
+
+                    <div className="pt-2 border-t border-black/5 dark:border-white/10 text-[9px] font-mono opacity-65 flex items-center justify-between">
+                      <span>{note.isPinned ? '📌 FIXADO' : 'RECADO'}</span>
+                      <span>{new Date(note.createdAt).toLocaleDateString('pt-BR')}</span>
                     </div>
                   </div>
                 );
@@ -384,10 +411,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
           <LeaderboardWidget />
 
           {choreLogs.length > 0 && (
-            <div className="rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-5 shadow-u-xs">
-              <div className="flex items-center gap-2 mb-3.5 text-gray-900 dark:text-white">
-                <Activity className="w-4 h-4 text-brand-600 dark:text-brand-400" />
-                <h3 className="text-xs font-bold uppercase tracking-wider font-display">Atividades Recentes</h3>
+            <div className="u-card-interactive rounded-2xl bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-200/80 dark:border-gray-800/80 p-5 shadow-u-sm hover:shadow-u-card-hover">
+              <div className="flex items-center justify-between mb-3.5 pb-2.5 border-b border-gray-100 dark:border-gray-800/80">
+                <div className="flex items-center gap-2 text-gray-900 dark:text-white">
+                  <div className="w-7 h-7 rounded-lg bg-brand-50 dark:bg-brand-950/60 text-brand-600 dark:text-brand-400 flex items-center justify-center">
+                    <Activity className="w-3.5 h-3.5" />
+                  </div>
+                  <h3 className="text-xs font-extrabold uppercase tracking-wider font-display">Atividades Recentes</h3>
+                </div>
+                <span className="text-[10px] font-mono font-bold text-gray-400 uppercase">Histórico</span>
               </div>
               <div className="space-y-2.5">
                 {choreLogs.slice(0, 4).map((log) => {
@@ -406,7 +438,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
                           {room?.name} • por <span className="font-medium text-gray-700 dark:text-gray-300">{log.completedByName}</span>
                         </span>
                       </div>
-                      <span className="text-warning-600 dark:text-warning-400 font-bold text-xs flex-shrink-0 bg-warning-50 dark:bg-warning-950/60 px-2 py-0.5 rounded-full border border-warning-200 dark:border-warning-900/40">
+                      <span className="font-mono text-warning-700 dark:text-warning-300 font-bold text-[11px] flex-shrink-0 bg-warning-50 dark:bg-warning-950/60 px-2.5 py-0.5 rounded-full border border-warning-200 dark:border-warning-900/40">
                         +{log.xpEarned} XP
                       </span>
                     </div>

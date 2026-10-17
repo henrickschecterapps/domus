@@ -29,33 +29,33 @@ export const PetStatusPill: React.FC<PetStatusPillProps> = ({ onNavigateToPet })
 
   return (
     <div
-      className={`rounded-2xl border p-4 transition-all shadow-u-xs ${
+      className={`u-card-interactive rounded-2xl border p-4 sm:p-5 transition-all shadow-u-sm hover:shadow-u-card-hover ${
         isUrgent
           ? 'bg-warning-25 dark:bg-warning-950/20 border-warning-200 dark:border-warning-900/40 text-gray-900 dark:text-white'
-          : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white'
+          : 'bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-gray-200/80 dark:border-gray-800/80 text-gray-900 dark:text-white'
       }`}
     >
       <div className="flex items-center justify-between gap-3">
         <div
           onClick={onNavigateToPet}
-          className="flex items-center gap-3 cursor-pointer min-w-0 flex-1 group"
+          className="flex items-center gap-3.5 cursor-pointer min-w-0 flex-1 group"
         >
           <div className="relative flex-shrink-0">
             <img
               src={pet.photoUrl}
               alt={pet.name}
-              className="w-12 h-12 rounded-xl object-cover ring-2 ring-gray-100 dark:ring-gray-800 group-hover:scale-105 transition-transform"
+              className="w-12 h-12 rounded-2xl object-cover ring-2 ring-brand-500/20 dark:ring-brand-400/20 group-hover:scale-105 transition-transform duration-200 ease-spring"
             />
             <span
-              className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-gray-900 ${
-                isUrgent ? 'bg-error-500' : 'bg-success-500'
+              className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-gray-900 ${
+                isUrgent ? 'bg-error-500 animate-pulse' : 'bg-success-500'
               }`}
             />
           </div>
 
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-gray-900 dark:text-white">{pet.name}</span>
+              <span className="text-xs font-extrabold font-display text-gray-900 dark:text-white">{pet.name}</span>
               <span className="text-[11px] text-gray-500 dark:text-gray-400">({pet.breed || (isCat ? 'Gato' : 'Cão')})</span>
               <Badge variant={isUrgent ? 'warning' : 'success'} size="sm" dot>
                 {isUrgent ? 'Atenção' : 'Em Dia'}
@@ -99,7 +99,7 @@ export const PetStatusPill: React.FC<PetStatusPillProps> = ({ onNavigateToPet })
         {isCat && isScoopUrgent ? (
           <button
             onClick={() => scoopLitterBox(pet.id)}
-            className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-warning-600 hover:bg-warning-700 text-white font-semibold text-xs shadow-u-xs transition-all active:scale-95 flex items-center gap-1.5"
+            className="u-btn-shine flex-shrink-0 px-3 py-1.5 rounded-xl bg-gradient-to-b from-warning-500 to-warning-600 hover:from-warning-600 hover:to-warning-700 text-white font-bold text-xs shadow-u-xs transition-all active:scale-95 flex items-center gap-1.5"
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span>Recolher</span>
@@ -107,7 +107,7 @@ export const PetStatusPill: React.FC<PetStatusPillProps> = ({ onNavigateToPet })
         ) : isDog && isWalkPending ? (
           <button
             onClick={() => walkDog(pet.id)}
-            className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs shadow-u-xs transition-all active:scale-95 flex items-center gap-1.5"
+            className="u-btn-shine flex-shrink-0 px-3 py-1.5 rounded-xl bg-gradient-to-b from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white font-bold text-xs shadow-u-glow transition-all active:scale-95 flex items-center gap-1.5"
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span>Passear</span>
@@ -115,7 +115,7 @@ export const PetStatusPill: React.FC<PetStatusPillProps> = ({ onNavigateToPet })
         ) : (
           <button
             onClick={onNavigateToPet}
-            className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 px-2 py-1 transition-colors flex items-center gap-0.5"
+            className="text-xs font-bold text-brand-600 dark:text-brand-400 hover:text-brand-700 px-2.5 py-1.5 rounded-xl hover:bg-brand-50 dark:hover:bg-brand-950/50 transition-colors flex items-center gap-0.5"
           >
             <span>Ver Pet</span>
             <ChevronRight className="w-3.5 h-3.5" />
@@ -125,3 +125,4 @@ export const PetStatusPill: React.FC<PetStatusPillProps> = ({ onNavigateToPet })
     </div>
   );
 };
+

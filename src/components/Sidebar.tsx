@@ -61,24 +61,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
   ];
 
+  const xpInCurrentLevel = currentUser.totalXP % 100;
+
   return (
-    <aside className="hidden md:flex flex-col w-64 h-screen sticky top-0 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 p-4 justify-between z-30 select-none shadow-u-xs">
+    <aside className="hidden md:flex flex-col w-64 h-screen sticky top-0 u-glass border-r border-gray-200/80 dark:border-gray-800/80 p-4 justify-between z-30 select-none shadow-u-xs">
       <div>
         {/* Brand & House Header */}
-        <div className="flex items-center gap-3 px-2 py-3 mb-5 border-b border-gray-100 dark:border-gray-800/80 pb-4">
-          <div className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-brand-950/60 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-800/40 flex items-center justify-center shadow-u-xs">
+        <div className="flex items-center gap-3 px-2 py-3 mb-5 border-b border-gray-200/60 dark:border-gray-800/80 pb-4">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 text-white flex items-center justify-center shadow-u-glow flex-shrink-0">
             <Home className="w-5 h-5 stroke-[2.2]" />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <h1 className="text-sm font-bold text-gray-900 dark:text-white tracking-tight truncate leading-tight">
+              <h1 className="text-sm font-extrabold font-display text-gray-900 dark:text-white tracking-tight truncate leading-tight">
                 {house.name}
               </h1>
             </div>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-success-500" />
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-success-500 animate-pulse" />
               <span className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">
-                Saúde: <strong className="text-success-600 dark:text-success-400 font-semibold">{house.houseScore}%</strong>
+                Harmonia: <strong className="text-success-600 dark:text-success-400 font-bold font-mono">{house.houseScore}%</strong>
               </span>
             </div>
           </div>
@@ -86,7 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Navigation list */}
         <nav className="space-y-1">
-          <p className="px-3 pb-1 text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+          <p className="px-3 pb-1.5 text-[10px] font-mono font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
             Navegação Principal
           </p>
           {tabs.map((tab) => {
@@ -97,14 +99,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 ${
+                className={`group relative w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 ease-spring ${
                   isActive
-                    ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 shadow-u-xs'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
+                    ? 'bg-brand-50/90 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 border border-brand-200/60 dark:border-brand-800/40 shadow-u-xs'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100/70 dark:hover:bg-gray-800/60 hover:text-gray-900 dark:hover:text-white border border-transparent'
                 }`}
               >
+                {isActive && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-full bg-brand-500 shadow-u-glow" />
+                )}
                 <div className="flex items-center gap-3">
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-brand-600 dark:text-brand-400' : 'text-gray-400 dark:text-gray-500'}`} />
+                  <Icon
+                    className={`w-4 h-4 transition-transform duration-200 ease-spring ${
+                      isActive
+                        ? 'text-brand-600 dark:text-brand-400 scale-110'
+                        : 'text-gray-400 dark:text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300 group-hover:scale-105'
+                    }`}
+                  />
                   <span>{tab.label}</span>
                 </div>
 
@@ -120,12 +131,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Bottom Section: Theme Switcher & User Profile */}
-      <div className="space-y-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+      <div className="space-y-3 pt-3 border-t border-gray-200/60 dark:border-gray-800/80">
         {/* Theme mode segmented control */}
-        <div className="flex items-center justify-between p-1 bg-gray-100 dark:bg-gray-800/80 rounded-xl border border-gray-200/60 dark:border-gray-700/60">
+        <div className="flex items-center justify-between p-1 bg-gray-100/90 dark:bg-gray-800/80 rounded-xl border border-gray-200/60 dark:border-gray-700/60">
           <button
             onClick={() => setTheme('light')}
-            className={`flex-1 py-1 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+            className={`flex-1 py-1.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all duration-200 ${
               theme === 'light'
                 ? 'bg-white text-gray-900 shadow-u-xs font-semibold'
                 : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
@@ -138,9 +149,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <button
             onClick={() => setTheme('dark')}
-            className={`flex-1 py-1 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+            className={`flex-1 py-1.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all duration-200 ${
               theme === 'dark'
-                ? 'bg-gray-700 text-white shadow-u-xs font-semibold'
+                ? 'bg-gray-900 text-white shadow-u-xs font-semibold'
                 : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
             }`}
             title="Tema Escuro"
@@ -151,9 +162,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <button
             onClick={() => setTheme('system')}
-            className={`flex-1 py-1 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+            className={`flex-1 py-1.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all duration-200 ${
               theme === 'system'
-                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-u-xs font-semibold'
+                ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-u-xs font-semibold'
                 : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
             }`}
             title="Automático pelo Sistema"
@@ -164,38 +175,56 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Current Resident Info & Switcher */}
-        <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200/60 dark:border-gray-700/60">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="relative flex-shrink-0">
-              <img
-                src={currentUser.avatarUrl}
-                alt={currentUser.displayName}
-                className="w-9 h-9 rounded-lg object-cover ring-1 ring-gray-200 dark:ring-gray-700"
-              />
-              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-success-500 ring-2 ring-white dark:ring-gray-800" />
+        <div className="p-2.5 rounded-2xl bg-white/80 dark:bg-gray-800/50 border border-gray-200/70 dark:border-gray-700/60 shadow-u-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="relative flex-shrink-0">
+                <img
+                  src={currentUser.avatarUrl}
+                  alt={currentUser.displayName}
+                  className="w-9 h-9 rounded-xl object-cover ring-2 ring-brand-500/20 dark:ring-brand-400/20"
+                />
+                <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-success-500 ring-2 ring-white dark:ring-gray-800" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-gray-900 dark:text-white truncate">
+                  {currentUser.displayName}
+                </p>
+                <span className="text-[10px] font-mono text-brand-600 dark:text-brand-400 font-semibold block truncate">
+                  {currentUser.levelTitle || 'Residente'} • NV. {currentUser.level ?? (Math.floor(currentUser.totalXP / 100) + 1)}
+                </span>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">
-                {currentUser.displayName}
-              </p>
-              <span className="text-[10px] text-gray-500 dark:text-gray-400 block truncate">
-                {currentUser.levelTitle || 'Residente'} • Nv. {currentUser.level ?? (Math.floor(currentUser.totalXP / 100) + 1)}
-              </span>
+
+            {members.length > 1 && (
+              <button
+                onClick={() => {
+                  const other = members.find((m) => m.userId !== currentUser.userId);
+                  if (other) switchUser(other.userId);
+                }}
+                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                title="Alternar residente"
+              >
+                <Users className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          {/* Subtle XP Progress Micro-Bar */}
+          <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700/50">
+            <div className="flex items-center justify-between text-[10px] text-gray-400 dark:text-gray-500 font-mono mb-1">
+              <span>XP SEMANAL</span>
+              <span className="text-gray-700 dark:text-gray-300 font-bold">{currentUser.weeklyXP} XP</span>
+            </div>
+            <div className="w-full h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-brand-500 to-warning-500 rounded-full transition-all duration-500"
+                style={{ width: `${Math.max(8, xpInCurrentLevel)}%` }}
+              />
             </div>
           </div>
-
-          <button
-            onClick={() => {
-              const other = members.find((m) => m.userId !== currentUser.userId);
-              if (other) switchUser(other.userId);
-            }}
-            className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-            title="Alternar residente"
-          >
-            <Users className="w-4 h-4" />
-          </button>
         </div>
       </div>
     </aside>
   );
 };
+

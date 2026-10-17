@@ -23,6 +23,18 @@
   --color-brand-primary: #C25E34;
   --color-brand-accent: #D97706;
   --color-botanical: #2E7D32;
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Custom Brand Text Selection */
+::selection {
+  background-color: rgba(194, 94, 52, 0.22);
+  color: inherit;
+}
+
+html.dark ::selection {
+  background-color: rgba(206, 136, 95, 0.3);
+  color: #FAF3ED;
 }
 
 html.dark {
@@ -45,7 +57,7 @@ html:not(.dark) body {
   color: #18181A;
 }
 
-/* Warm Tactile Scrollbars */
+/* Warm Tactile Scrollbars with Brand Hover */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -57,6 +69,10 @@ html.dark ::-webkit-scrollbar-track {
 html.dark ::-webkit-scrollbar-thumb {
   background: #3A3833;
   border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #C25E34;
 }
 
 html:not(.dark) ::-webkit-scrollbar-track {
@@ -65,6 +81,10 @@ html:not(.dark) ::-webkit-scrollbar-track {
 html:not(.dark) ::-webkit-scrollbar-thumb {
   background: #DAD6CD;
   border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+html:not(.dark) ::-webkit-scrollbar-thumb:hover {
+  background: #C25E34;
 }
 
 /* Safe area insets for notches and mobile navigation */
@@ -82,25 +102,139 @@ html:not(.dark) ::-webkit-scrollbar-thumb {
   outline-offset: 2px;
 }
 
-/* Untitled UI Smooth Transitions & Pop */
+/* Overkill Web Design: Keyframe Choreography */
 @keyframes u-scale-in {
-  0% { transform: scale(0.97); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
+  0% { transform: scale(0.96) translateY(6px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+@keyframes u-fade-up {
+  0% { transform: translateY(14px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes u-float-slow {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  50% { transform: translate(12px, -14px) scale(1.04); }
+}
+
+@keyframes u-shimmer {
+  0% { transform: translateX(-120%) skewX(-18deg); }
+  100% { transform: translateX(220%) skewX(-18deg); }
 }
 
 .animate-u-scale {
-  animation: u-scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: u-scale-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Untitled UI Glass Surface */
+.animate-view-enter {
+  animation: u-fade-up 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-float-slow {
+  animation: u-float-slow 12s ease-in-out infinite;
+}
+
+/* Staggered utility delays */
+.delay-75 { animation-delay: 75ms; }
+.delay-150 { animation-delay: 150ms; }
+.delay-225 { animation-delay: 225ms; }
+.delay-300 { animation-delay: 300ms; }
+
+/* Frosted Glass Surface (Warm Charcoal in Dark Mode, Warm Linen in Light) */
 .u-glass {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(251, 251, 249, 0.84);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
 }
 
 html.dark .u-glass {
-  background: rgba(16, 24, 40, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(24, 24, 27, 0.84);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
 }
+
+/* Elevated Interactive Card with Top Edge Luminescence */
+.u-card-interactive {
+  position: relative;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.u-card-interactive::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(194, 94, 52, 0.28), transparent 45%, rgba(217, 119, 6, 0.14));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+.u-card-interactive:hover {
+  transform: translateY(-2px);
+}
+
+.u-card-interactive:hover::before {
+  opacity: 1;
+}
+
+/* Primary Button Shine Sweep */
+.u-btn-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.u-btn-shine::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 55%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.22),
+    transparent
+  );
+  transform: skewX(-18deg);
+  transition: left 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+.u-btn-shine:hover::after {
+  left: 160%;
+}
+
+/* Architectural Dot Grid Background */
+.bg-architectural-grid {
+  background-image: radial-gradient(rgba(194, 94, 52, 0.11) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+html.dark .bg-architectural-grid {
+  background-image: radial-gradient(rgba(206, 136, 95, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Subtle SVG Film Grain Overlay */
+.bg-noise-overlay {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.028'/%3E%3C/svg%3E");
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+

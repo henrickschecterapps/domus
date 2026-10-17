@@ -27,22 +27,25 @@ export const CleaningView: React.FC = () => {
   return (
     <div className="space-y-5 pb-20 animate-in fade-in duration-200 w-full">
       {/* Header & Filter Controls */}
-      <div className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-u-xs space-y-4">
+      <div className="u-card-interactive p-5 sm:p-6 rounded-2xl bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-200/80 dark:border-gray-800/80 shadow-u-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-brand-50 dark:bg-brand-950/60 border border-brand-100 dark:border-brand-900/30 text-brand-600 dark:text-brand-400 flex items-center justify-center shadow-u-xs">
-              <Sparkles className="w-5 h-5 stroke-[2]" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 text-white flex items-center justify-center shadow-u-glow flex-shrink-0">
+              <Sparkles className="w-5 h-5 stroke-[2.2]" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider font-display">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-brand-600 dark:text-brand-400 block leading-none mb-0.5">
+                AMBIENTES & HIGIENE
+              </span>
+              <h2 className="text-sm sm:text-base font-extrabold text-gray-900 dark:text-white uppercase tracking-wider font-display">
                 Cômodos & Gestão de Ambientes
               </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Monitore o índice de higiene e as rotinas preventivas
+                Monitore o índice de higiene e as rotinas preventivas de cada espaço
               </p>
             </div>
           </div>
-          <Badge variant="brand" size="md">
+          <Badge variant="brand" size="md" dot>
             {rooms.length} Ambientes Mapeados
           </Badge>
         </div>
