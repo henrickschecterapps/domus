@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Room, Chore } from '../types';
 import { useApp } from '../context/AppContext';
@@ -20,9 +20,16 @@ import {
   Camera,
   Image as ImageIcon,
   X,
+  Sparkles,
+  Pencil,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  CheckCircle2,
 } from 'lucide-react';
 import { triggerHaptic } from '../utils/haptics';
 import { playSuccessChime } from '../utils/soundEffects';
+import { getSuggestedChoresForRoom, SuggestedChoreTemplate } from '../data/suggestedChores';
 
 interface RoomModalProps {
   room: Room;
@@ -34,6 +41,8 @@ export const RoomModal: React.FC<RoomModalProps> = ({ room, onClose }) => {
     chores,
     completeChore,
     addChore,
+    updateChore,
+    deleteChore,
     resetChoreTimer,
     members,
     currentUser,
@@ -43,11 +52,26 @@ export const RoomModal: React.FC<RoomModalProps> = ({ room, onClose }) => {
   const [tab, setTab] = useState<'pending' | 'completed'>('pending');
   const [search, setSearch] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // New chore form state
   const [newTitle, setNewTitle] = useState('');
   const [newDays, setNewDays] = useState('7');
   const [newXp, setNewXp] = useState('25');
   const [newDifficulty, setNewDifficulty] = useState<'facil' | 'medio' | 'pesado'>('medio');
   const [newMinutes, setNewMinutes] = useState('20');
+
+  // Edit chore state
+  const [editingChore, setEditingChore] = useState<Chore | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDays, setEditDays] = useState('7');
+  const [editXp, setEditXp] = useState('25');
+  const [editDifficulty, setEditDifficulty] = useState<'facil' | 'medio' | 'pesado'>('medio');
+  const [editMinutes, setEditMinutes] = useState('20');
+  const [editAssignedTo, setEditAssignedTo] = useState<string>('');
+
+  // Delete chore confirmation modal state
+  const [deletingChore, setDeletingChore] = useState<Chore | null>(null);
 
   // Proof photo completion modal state
   const [completingChoreId, setCompletingChoreId] = useState<string | null>(null);
@@ -57,6 +81,17 @@ export const RoomModal: React.FC<RoomModalProps> = ({ room, onClose }) => {
 
   const now = Date.now();
   const roomChores = chores.filter((c) => c.roomId === room.id);
+
+  // Suggested chores catalog specifically for this room
+  const suggestedTemplates = useMemo(() => {
+    return getSuggestedChoresForRoom(room);
+  }, [room]);
+
+  const isTemplateAdded = (templateTitle: string) => {
+    return roomChores.some(
+      (c) => c.title.trim().toLowerCase() === templateTitle.trim().toLowerCase()
+    );
+  };
 
   const pendingChores = roomChores.filter((c) => {
     const cooldown = checkChoreCooldown(c.lastCompletedAt, now);
@@ -85,6 +120,57 @@ export const RoomModal: React.FC<RoomModalProps> = ({ room, onClose }) => {
     );
     setNewTitle('');
     setShowAddForm(false);
+  };
+
+  const handleAddSuggestedChore = (template: SuggestedChoreTemplate) => {
+    addChore(
+      room.id,
+      template.title,
+      template.frequencyDays,
+      template.xpReward,
+      template.difficulty,
+      template.estimatedMinutes
+    );
+  };
+
+  const handleCustomizeSuggestedChore = (template: SuggestedChoreTemplate) => {
+    setNewTitle(template.title);
+    setNewDays(String(template.frequencyDays));
+    setNewXp(String(template.xpReward));
+    setNewDifficulty(template.difficulty);
+    setNewMinutes(String(template.estimatedMinutes));
+    setShowAddForm(true);
+    setShowSuggestions(false);
+  };
+
+  const handleStartEdit = (chore: Chore) => {
+    setEditingChore(chore);
+    setEditTitle(chore.title);
+    setEditDays(String(chore.frequencyDays));
+    setEditXp(String(chore.xpReward));
+    setEditDifficulty(chore.difficulty || 'medio');
+    setEditMinutes(String(chore.estimatedMinutes || 20));
+    setEditAssignedTo(chore.assignedTo || '');
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingChore || !editTitle.trim()) return;
+    updateChore(editingChore.id, {
+      title: editTitle.trim(),
+      frequencyDays: parseInt(editDays) || 7,
+      xpReward: parseInt(editXp) || 25,
+      difficulty: editDifficulty,
+      estimatedMinutes: parseInt(editMinutes) || 20,
+      assignedTo: editAssignedTo || null,
+    });
+    setEditingChore(null);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deletingChore) return;
+    deleteChore(deletingChore.id);
+    setDeletingChore(null);
   };
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -116,7 +202,7 @@ export const RoomModal: React.FC<RoomModalProps> = ({ room, onClose }) => {
       isOpen={true}
       onClose={onClose}
       title={room.name}
-      subtitle={`${room.statusScore}% Saúde do Ambiente • ${roomChores.length} tarefas`}
+      subtitle={`${room.statusScore}% Saúde do Ambiente • ${roomChores.length} tarefas cadastradas`}
     >
       <div className="space-y-4">
         {/* iOS Segmented Control */}
@@ -129,6 +215,110 @@ export const RoomModal: React.FC<RoomModalProps> = ({ room, onClose }) => {
           onChange={(v) => setTab(v)}
         />
 
+        {/* Smart Room Suggestions Card & Drawer */}
+        <div className="rounded-2xl border border-brand-200/80 dark:border-brand-900/60 bg-gradient-to-r from-brand-50/70 via-indigo-50/40 to-violet-50/70 dark:from-brand-950/40 dark:via-indigo-950/30 dark:to-violet-950/40 overflow-hidden shadow-u-xs transition-all">
+          <button
+            type="button"
+            onClick={() => setShowSuggestions(!showSuggestions)}
+            className="w-full p-3.5 flex items-center justify-between text-left transition-colors hover:bg-brand-100/40 dark:hover:bg-brand-900/20"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white flex items-center justify-center shadow-u-glow flex-shrink-0">
+                <Sparkles className="w-4 h-4 stroke-[2.2]" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <h4 className="text-xs font-extrabold text-gray-900 dark:text-white uppercase tracking-wider font-display">
+                    Sugestões para {room.name}
+                  </h4>
+                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-brand-500/15 text-brand-700 dark:text-brand-300">
+                    {suggestedTemplates.length} disponíveis
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-600 dark:text-gray-400 truncate">
+                  Tarefas recomendadas com 1 toque para adicionar a este cômodo
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 text-brand-600 dark:text-brand-400 text-xs font-bold pl-2 flex-shrink-0">
+              <span className="hidden xs:inline">{showSuggestions ? 'Ocultar' : 'Explorar'}</span>
+              {showSuggestions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </div>
+          </button>
+
+          {showSuggestions && (
+            <div className="p-3.5 pt-0 space-y-2 border-t border-brand-100/80 dark:border-brand-900/40 max-h-72 overflow-y-auto pr-1">
+              {suggestedTemplates.map((template) => {
+                const added = isTemplateAdded(template.title);
+
+                return (
+                  <div
+                    key={template.id}
+                    className={`p-3 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                      added
+                        ? 'bg-white/40 dark:bg-gray-900/30 border-gray-200/50 dark:border-gray-800/60 opacity-75'
+                        : 'bg-white dark:bg-gray-900 border-brand-100 dark:border-gray-800 shadow-u-xs hover:border-brand-300 dark:hover:border-brand-700'
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400">
+                          A cada {template.frequencyDays} {template.frequencyDays === 1 ? 'dia' : 'dias'}
+                        </span>
+                        <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
+                          ⏱ {template.estimatedMinutes} min •{' '}
+                          {template.difficulty === 'facil'
+                            ? 'Fácil'
+                            : template.difficulty === 'pesado'
+                            ? 'Pesado'
+                            : 'Médio'}
+                        </span>
+                        <span className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400">
+                          +{template.xpReward} XP
+                        </span>
+                      </div>
+                      <h5 className="text-xs font-bold text-gray-900 dark:text-white">
+                        {template.title}
+                      </h5>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                        {template.description}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-shrink-0 self-end sm:self-center">
+                      {added ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                          <span>Adicionada</span>
+                        </span>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleCustomizeSuggestedChore(template)}
+                            className="px-2.5 py-1 rounded-xl text-[11px] font-medium text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                            title="Personalizar antes de adicionar"
+                          >
+                            Ajustar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAddSuggestedChore(template)}
+                            className="flex items-center gap-1 px-3 py-1 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-u-xs transition-all active:scale-95"
+                          >
+                            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                            <span>Adicionar</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         {/* Search filter if more than 3 chores */}
         {roomChores.length > 3 && (
           <div className="relative">
@@ -138,7 +328,7 @@ export const RoomModal: React.FC<RoomModalProps> = ({ room, onClose }) => {
               placeholder="Buscar tarefas neste cômodo..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-slate-100 dark:bg-[#2C2C2E] border border-black/5 dark:border-white/5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
+              className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-slate-100 dark:bg-[#2C2C2E] border border-black/5 dark:border-white/5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
         )}
@@ -146,10 +336,13 @@ export const RoomModal: React.FC<RoomModalProps> = ({ room, onClose }) => {
         {/* Chores List */}
         <div className="space-y-2.5">
           {activeList.length === 0 ? (
-            <div className="py-8 text-center text-slate-400">
+            <div className="py-8 text-center text-slate-400 rounded-2xl bg-gray-50/60 dark:bg-gray-800/20 border border-dashed border-gray-200 dark:border-gray-800">
               <Check className="w-8 h-8 mx-auto text-[#34C759] mb-2" />
               <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
                 {tab === 'pending' ? 'Tudo em dia nesta seção!' : 'Nenhuma tarefa em pausa recente.'}
+              </p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                Use as sugestões acima ou crie uma nova tarefa abaixo.
               </p>
             </div>
           ) : (
@@ -168,10 +361,10 @@ export const RoomModal: React.FC<RoomModalProps> = ({ room, onClose }) => {
               return (
                 <div
                   key={chore.id}
-                  className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#2C2C2E]/60 border border-slate-100 dark:border-white/5 flex flex-col justify-between gap-3 shadow-sm"
+                  className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#2C2C2E]/60 border border-slate-100 dark:border-white/5 flex flex-col justify-between gap-3 shadow-sm hover:border-brand-300/40 dark:hover:border-brand-700/40 transition-colors"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5 mb-1">
                         <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                           A cada {chore.frequencyDays} {chore.frequencyDays === 1 ? 'dia' : 'dias'}
@@ -219,7 +412,8 @@ export const RoomModal: React.FC<RoomModalProps> = ({ room, onClose }) => {
                           ? `Por ${chore.lastCompletedBy.displayName} (${humanizeTimestamp(chore.lastCompletedAt, now)})`
                           : humanizeTimestamp(chore.lastCompletedAt, now)}
                       </p>
-                      {/* Rotation Badge: Phase 3 */}
+
+                      {/* Resident Responsibility badge */}
                       {chore.assignedTo && (
                         <div className="mt-1 flex items-center gap-1.5">
                           {chore.assignedTo === currentUser.userId ? (
@@ -235,7 +429,8 @@ export const RoomModal: React.FC<RoomModalProps> = ({ room, onClose }) => {
                       )}
                     </div>
 
-                    <div className="text-right flex-shrink-0">
+                    {/* XP & Quick Edit/Delete Actions */}
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
                       <span className="text-xs font-black text-[#FF9500] block">
                         +{xpWithBonus} XP
                       </span>
@@ -244,6 +439,25 @@ export const RoomModal: React.FC<RoomModalProps> = ({ room, onClose }) => {
                           Bônus 1.5x
                         </span>
                       )}
+
+                      <div className="flex items-center gap-1 mt-1">
+                        <button
+                          onClick={() => handleStartEdit(chore)}
+                          className="p-1.5 text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-950/50 rounded-lg transition-colors"
+                          title="Editar esta tarefa"
+                          aria-label="Editar tarefa"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setDeletingChore(chore)}
+                          className="p-1.5 text-gray-400 hover:text-error-600 dark:hover:text-error-400 hover:bg-error-50 dark:hover:bg-error-950/50 rounded-lg transition-colors"
+                          title="Excluir esta tarefa"
+                          aria-label="Excluir tarefa"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -311,11 +525,11 @@ export const RoomModal: React.FC<RoomModalProps> = ({ room, onClose }) => {
           )}
         </div>
 
-        {/* Add Chore section */}
+        {/* Add Custom Chore section */}
         {showAddForm ? (
           <form onSubmit={handleCreateChore} className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200/60 dark:border-gray-800 space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400 font-display">
-              Nova Tarefa para {room.name}
+              Nova Tarefa Personalizada para {room.name}
             </h4>
             <div>
               <input
@@ -397,15 +611,218 @@ export const RoomModal: React.FC<RoomModalProps> = ({ room, onClose }) => {
             </div>
           </form>
         ) : (
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="w-full py-3 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-800 hover:border-brand-400 text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Adicionar Tarefa a este Cômodo</span>
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2 pt-1">
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="flex-1 py-2.5 px-3 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-brand-400 text-gray-600 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Criar Tarefa Manual</span>
+            </button>
+            <button
+              onClick={() => setShowSuggestions(true)}
+              className="py-2.5 px-3 rounded-xl bg-brand-50 hover:bg-brand-100 dark:bg-brand-950/60 dark:hover:bg-brand-900/60 text-brand-700 dark:text-brand-300 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Abrir Sugestões</span>
+            </button>
+          </div>
         )}
       </div>
+
+      {/* MODAL: Editar Tarefa Existente */}
+      {editingChore && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-gray-900/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-hidden">
+          <div className="w-full max-w-md max-h-[88dvh] sm:max-h-[85vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-3xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-5 sm:p-6 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-brand-50 dark:bg-brand-950/70 text-brand-600 dark:text-brand-400 flex items-center justify-center">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold font-display text-gray-900 dark:text-white">
+                    Editar Tarefa
+                  </h3>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                    {room.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingChore(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-3.5">
+              <div>
+                <label className="text-[11px] font-bold text-gray-700 dark:text-gray-300 block mb-1">
+                  Título da Tarefa *
+                </label>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 block mb-1">
+                    Frequência (dias)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="90"
+                    value={editDays}
+                    onChange={(e) => setEditDays(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/30 font-display font-semibold"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 block mb-1">
+                    XP Recompensa
+                  </label>
+                  <input
+                    type="number"
+                    min="5"
+                    max="150"
+                    value={editXp}
+                    onChange={(e) => setEditXp(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/30 font-display font-semibold"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 block mb-1">
+                    Dificuldade
+                  </label>
+                  <select
+                    value={editDifficulty}
+                    onChange={(e) => setEditDifficulty(e.target.value as any)}
+                    className="w-full px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                  >
+                    <option value="facil">Fácil (Rápida)</option>
+                    <option value="medio">Médio (Padrão)</option>
+                    <option value="pesado">Pesado (Faxina)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 block mb-1">
+                    Tempo Estimado (min)
+                  </label>
+                  <input
+                    type="number"
+                    min="5"
+                    max="180"
+                    step="5"
+                    value={editMinutes}
+                    onChange={(e) => setEditMinutes(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/30 font-display font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 block mb-1">
+                  Morador Designado / Rotação
+                </label>
+                <select
+                  value={editAssignedTo}
+                  onChange={(e) => setEditAssignedTo(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                >
+                  <option value="">Livre / Rotação Automática da Casa</option>
+                  {members.map((m) => (
+                    <option key={m.userId} value={m.userId}>
+                      {m.displayName} {m.userId === currentUser.userId ? '(Você)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-gray-100 dark:border-gray-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingChore(null)}
+                  className="px-3.5 py-1.5 rounded-xl text-xs text-gray-500 hover:text-gray-900 dark:hover:text-white font-medium transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-u-xs transition-all active:scale-95"
+                >
+                  Salvar Alterações
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* MODAL: Confirmação de Exclusão de Tarefa */}
+      {deletingChore && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-gray-900/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-hidden">
+          <div className="w-full max-w-sm max-h-[88dvh] sm:max-h-[85vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-3xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-5 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-error-50 dark:bg-error-950/60 border border-error-100 dark:border-error-900/40 text-error-600 dark:text-error-400 flex items-center justify-center flex-shrink-0">
+                <Trash2 className="w-5 h-5 stroke-[2.2]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold font-display text-gray-900 dark:text-white">
+                  Excluir Tarefa?
+                </h3>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                  Esta ação não poderá ser desfeita
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200/60 dark:border-gray-800 text-xs">
+              <p className="font-bold text-gray-900 dark:text-white">
+                {deletingChore.title}
+              </p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                {room.name} • A cada {deletingChore.frequencyDays} dias • {deletingChore.xpReward} XP
+              </p>
+            </div>
+
+            <p className="text-xs text-gray-600 dark:text-gray-400">
+              A tarefa será removida do cômodo e deixará de impactar os cálculos de saúde e pontuação da casa.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-gray-100 dark:border-gray-800">
+              <button
+                type="button"
+                onClick={() => setDeletingChore(null)}
+                className="px-3.5 py-2 text-xs font-semibold text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 rounded-xl bg-error-600 hover:bg-error-700 text-white font-bold text-xs shadow-u-xs transition-all active:scale-95"
+              >
+                Sim, Excluir Tarefa
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Completion Modal with Optional Photo Proof */}
       {completingChoreId && typeof document !== 'undefined' && createPortal(

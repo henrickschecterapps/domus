@@ -102,6 +102,8 @@ interface AppContextType {
   // Chore actions
   completeChore: (choreId: string, proofUrl?: string) => { success: boolean; earnedXp?: number; reason?: string };
   addChore: (roomId: string, title: string, frequencyDays: number, xpReward: number, difficulty?: 'facil' | 'medio' | 'pesado', estimatedMinutes?: number) => void;
+  updateChore: (choreId: string, updates: Partial<Chore>) => void;
+  deleteChore: (choreId: string) => void;
   resetChoreTimer: (choreId: string, hoursAgo?: number) => void;
   // Pet actions
   scoopLitterBox: (petId?: string) => void;
@@ -755,6 +757,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     playSoftPop(soundEnabled);
     triggerHaptic('light');
     showToast('Nova tarefa adicionada!', 'success');
+  };
+
+  const updateChore = (choreId: string, updates: Partial<Chore>) => {
+    const updated = chores.map((c) => {
+      if (c.id !== choreId) return c;
+      const merged = { ...c, ...updates };
+      const urgency = calculateChoreUrgency(merged);
+      return {
+        ...merged,
+        urgencyScore: urgency.urgencyRatio,
+        statusLevel: urgency.statusLevel,
+      };
+    });
+    setChores(updated);
+    refreshScores(updated);
+    triggerHaptic('light');
+    showToast('Tarefa atualizada com sucesso!', 'success');
+  };
+
+  const deleteChore = (choreId: string) => {
+    const updated = chores.filter((c) => c.id !== choreId);
+    setChores(updated);
+    refreshScores(updated);
+    triggerHaptic('medium');
+    showToast('Tarefa removida.', 'info');
   };
 
   // Pet Actions & Multi-Pet Management
@@ -2448,6 +2475,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateMemberProfile,
         completeChore,
         addChore,
+        updateChore,
+        deleteChore,
         resetChoreTimer,
         scoopLitterBox,
         fullChangeLitterBox,
