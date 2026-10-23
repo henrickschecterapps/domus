@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { X, KeyRound, PlusCircle, Users, CheckCircle, Home, Sparkles, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Button } from './untitled/Button';
@@ -19,7 +20,18 @@ export const AuthHouseModal: React.FC<AuthHouseModalProps> = ({ isOpen, onClose 
   const [newHouseName, setNewHouseName] = useState('');
   const [adminName, setAdminName] = useState(currentUser.displayName || '');
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
+  if (!isOpen || typeof document === 'undefined') return null;
 
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,10 +58,10 @@ export const AuthHouseModal: React.FC<AuthHouseModalProps> = ({ isOpen, onClose 
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-hidden">
       <div
-        className="w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200"
+        className="w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 overflow-hidden flex flex-col max-h-[88dvh] sm:max-h-[85vh] animate-in zoom-in-95 duration-200"
         role="dialog"
       >
         {/* Header */}
@@ -271,6 +283,7 @@ export const AuthHouseModal: React.FC<AuthHouseModalProps> = ({ isOpen, onClose 
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

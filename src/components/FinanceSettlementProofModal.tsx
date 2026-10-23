@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { SettlementTransfer, formatCurrencyBRL } from '../utils/financeMath';
 import { X, Upload, Camera, Check, ArrowRight, Image as ImageIcon, Trash2 } from 'lucide-react';
@@ -23,7 +24,18 @@ export const FinanceSettlementProofModal: React.FC<FinanceSettlementProofModalPr
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  if (!isOpen || !settlement) return null;
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
+  if (!isOpen || !settlement || typeof document === 'undefined') return null;
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -61,9 +73,9 @@ export const FinanceSettlementProofModal: React.FC<FinanceSettlementProofModalPr
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-3xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-6 space-y-5 animate-u-scale">
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150 overflow-hidden">
+      <div className="w-full max-w-md max-h-[88dvh] sm:max-h-[85vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-3xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-5 sm:p-6 space-y-4 sm:space-y-5 animate-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-800">
           <div>
             <h3 className="text-base font-bold font-display text-gray-900 dark:text-white">
@@ -178,6 +190,7 @@ export const FinanceSettlementProofModal: React.FC<FinanceSettlementProofModalPr
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

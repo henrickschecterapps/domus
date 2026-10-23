@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Room, Chore } from '../types';
 import { useApp } from '../context/AppContext';
 import {
@@ -407,9 +408,9 @@ export const RoomModal: React.FC<RoomModalProps> = ({ room, onClose }) => {
       </div>
 
       {/* Completion Modal with Optional Photo Proof */}
-      {completingChoreId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-5 space-y-4 animate-in zoom-in-95 duration-150">
+      {completingChoreId && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-gray-900/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-hidden">
+          <div className="w-full max-w-sm max-h-[88dvh] sm:max-h-[85vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-5 space-y-4 animate-in zoom-in-95 duration-150">
             <div>
               <h3 className="text-sm font-bold font-display text-gray-900 dark:text-white">
                 Confirmar Conclusão
@@ -481,13 +482,14 @@ export const RoomModal: React.FC<RoomModalProps> = ({ room, onClose }) => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Fullscreen Proof Photo Viewer */}
-      {viewingProofUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="relative max-w-lg w-full bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-4 space-y-3 animate-in zoom-in-95 duration-150">
+      {viewingProofUrl && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-150 overflow-hidden">
+          <div className="relative max-w-lg w-full max-h-[88dvh] sm:max-h-[85vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-4 space-y-3 animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-gray-800">
               <span className="text-xs font-bold text-gray-900 dark:text-white">
                 Comprovante da Tarefa
@@ -515,7 +517,8 @@ export const RoomModal: React.FC<RoomModalProps> = ({ room, onClose }) => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </BottomSheet>
   );

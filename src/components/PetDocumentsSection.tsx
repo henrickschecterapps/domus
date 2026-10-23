@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { Pet, PetDocument } from '../types';
 import {
@@ -168,9 +169,9 @@ export const PetDocumentsSection: React.FC<PetDocumentsSectionProps> = ({ pet })
       )}
 
       {/* Add Document Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-3xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-6 space-y-4 animate-u-scale">
+      {showAddModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150 overflow-hidden">
+          <div className="w-full max-w-md max-h-[88dvh] sm:max-h-[85vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-3xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-5 sm:p-6 space-y-4 animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-800">
               <h3 className="text-base font-bold font-display text-gray-900 dark:text-white">
                 Anexar Documento para {pet.name}
@@ -269,17 +270,18 @@ export const PetDocumentsSection: React.FC<PetDocumentsSectionProps> = ({ pet })
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Full-size image preview modal */}
-      {viewingDoc && (
+      {viewingDoc && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-950/80 backdrop-blur-md animate-in fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-gray-950/80 backdrop-blur-md animate-in fade-in overflow-hidden"
           onClick={() => setViewingDoc(null)}
         >
           <div
-            className="max-w-2xl w-full bg-gray-900 rounded-3xl border border-gray-800 overflow-hidden p-4 space-y-3"
+            className="max-w-2xl w-full max-h-[90dvh] overflow-y-auto bg-gray-900 rounded-3xl border border-gray-800 p-4 space-y-3 animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
@@ -307,7 +309,8 @@ export const PetDocumentsSection: React.FC<PetDocumentsSectionProps> = ({ pet })
               />
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

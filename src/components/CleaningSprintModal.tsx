@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { Chore } from '../types';
 import {
@@ -54,7 +55,18 @@ export const CleaningSprintModal: React.FC<CleaningSprintModalProps> = ({
     return () => clearInterval(interval);
   }, [isActive, secondsRemaining, soundEnabled]);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
+  if (!isOpen || typeof document === 'undefined') return null;
 
   const minutes = Math.floor(secondsRemaining / 60);
   const seconds = secondsRemaining % 60;
@@ -87,9 +99,9 @@ export const CleaningSprintModal: React.FC<CleaningSprintModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-950/80 backdrop-blur-md animate-in fade-in duration-150">
-      <div className="w-full max-w-lg bg-gray-900 rounded-3xl border border-gray-800 p-6 space-y-5 shadow-u-xl text-white animate-u-scale relative overflow-hidden">
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-gray-950/80 backdrop-blur-md animate-in fade-in duration-150 overflow-hidden">
+      <div className="w-full max-w-lg max-h-[88dvh] sm:max-h-[85vh] overflow-y-auto bg-gray-900 rounded-3xl border border-gray-800 p-4 sm:p-6 space-y-4 sm:space-y-5 shadow-u-xl text-white animate-in zoom-in-95 duration-150 relative">
         {/* Ambient Glow */}
         <div className="pointer-events-none absolute -top-20 -right-20 w-60 h-60 rounded-full bg-brand-500/20 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-20 -left-20 w-60 h-60 rounded-full bg-amber-500/15 blur-3xl" />
@@ -233,6 +245,7 @@ export const CleaningSprintModal: React.FC<CleaningSprintModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

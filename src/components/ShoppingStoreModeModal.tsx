@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { ShoppingItem, ShoppingAisleCategory } from '../types';
 import { formatCurrencyBRL } from '../utils/financeMath';
@@ -55,7 +56,18 @@ export const ShoppingStoreModeModal: React.FC<ShoppingStoreModeModalProps> = ({
   const [quickItemAisle, setQuickItemAisle] = useState<ShoppingAisleCategory>('mercearia');
   const [showQuickAdd, setShowQuickAdd] = useState(false);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
+  if (!isOpen || typeof document === 'undefined') return null;
 
   const boughtItems = shoppingItems.filter((i) => i.isBought);
   const pendingItems = shoppingItems.filter((i) => !i.isBought);
@@ -107,8 +119,8 @@ export const ShoppingStoreModeModal: React.FC<ShoppingStoreModeModalProps> = ({
     triggerHaptic('light');
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-gray-950 text-white animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex flex-col bg-gray-950 text-white animate-in fade-in duration-200 overflow-hidden">
       {/* Top Header Bar */}
       <header className="p-4 bg-gray-900/90 backdrop-blur-xl border-b border-gray-800 flex items-center justify-between safe-top">
         <div className="flex items-center gap-3">
@@ -401,6 +413,7 @@ export const ShoppingStoreModeModal: React.FC<ShoppingStoreModeModalProps> = ({
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 };

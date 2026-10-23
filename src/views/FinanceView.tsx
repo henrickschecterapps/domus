@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import QRCode from 'qrcode';
 import { useApp } from '../context/AppContext';
 import { Expense, ExpenseCategory, HouseBudget, SplitType, ExpenseNature, ExpensePaymentStatus } from '../types';
@@ -613,7 +614,7 @@ export const FinanceView: React.FC = () => {
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-end gap-1.5 pt-1.5 border-t border-gray-100 dark:border-gray-800">
+                  <div className="flex flex-wrap items-center justify-end gap-1.5 pt-1.5 border-t border-gray-100 dark:border-gray-800">
                     {bill.barcode && (
                       <button
                         onClick={() => handleCopyBarcode(bill)}
@@ -956,7 +957,7 @@ export const FinanceView: React.FC = () => {
                     </div>
 
                     {/* Quick action buttons: Open PIX QR Code Modal or WhatsApp Reminder */}
-                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-gray-200/40 dark:border-gray-800/60">
+                    <div className="flex flex-wrap items-center justify-end gap-2 pt-1 border-t border-gray-200/40 dark:border-gray-800/60">
                                             <button
                         onClick={() => setProofSettlement(settlement)}
                         className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-semibold text-[11px] shadow-u-xs transition-all active:scale-95"
@@ -1940,9 +1941,9 @@ export const FinanceView: React.FC = () => {
       </BottomSheet>
 
       {/* PIX QR Code & BR Code Copia e Cola Modal */}
-      {activePixSettlement && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="relative max-w-sm w-full bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-5 space-y-4 animate-in zoom-in-95 duration-150">
+      {activePixSettlement && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-150 overflow-hidden">
+          <div className="relative max-w-sm w-full max-h-[88dvh] sm:max-h-[85vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-5 space-y-4 animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-gray-800">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center">
@@ -2036,13 +2037,14 @@ export const FinanceView: React.FC = () => {
               })()}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Budget Target & Categories Adjustment Modal */}
-      {showBudgetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="relative max-w-md w-full bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-5 space-y-4 animate-in zoom-in-95 duration-150">
+      {showBudgetModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-150 overflow-hidden">
+          <div className="relative max-w-md w-full max-h-[88dvh] sm:max-h-[85vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-5 space-y-4 animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-gray-800">
               <div className="flex items-center gap-2">
                 <Sliders className="w-4 h-4 text-emerald-600" />
@@ -2134,13 +2136,14 @@ export const FinanceView: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Report Modal (Fechamento Mensal & Impressão / PDF) */}
-      {showReportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="relative max-w-2xl w-full max-h-[85vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-6 space-y-5 animate-in zoom-in-95 duration-150 print:p-0 print:border-none print:shadow-none">
+      {showReportModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-150 overflow-hidden">
+          <div className="relative max-w-2xl w-full max-h-[88dvh] sm:max-h-[85vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-5 sm:p-6 space-y-4 sm:space-y-5 animate-in zoom-in-95 duration-150 print:p-0 print:border-none print:shadow-none">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-800 print:hidden">
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-brand-600" />
@@ -2285,13 +2288,14 @@ export const FinanceView: React.FC = () => {
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Fullscreen Receipt Modal Viewer */}
-      {viewingReceiptUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="relative max-w-lg w-full bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-4 space-y-3 animate-in zoom-in-95 duration-150">
+      {viewingReceiptUrl && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-150 overflow-hidden">
+          <div className="relative max-w-lg w-full max-h-[88dvh] sm:max-h-[85vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-4 space-y-3 animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-gray-800">
               <span className="text-xs font-bold text-gray-900 dark:text-white">
                 Comprovante da Despesa
@@ -2320,7 +2324,8 @@ export const FinanceView: React.FC = () => {
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     
       {/* Phase 1 Modals */}

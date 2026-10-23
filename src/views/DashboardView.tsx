@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { QuickCleanWidget } from '../components/QuickCleanWidget';
 import { PetStatusPill } from '../components/PetStatusPill';
@@ -781,9 +782,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
       </div>
 
       {/* MODAL: Adicionar Recado no Mural da Geladeira */}
-      {showAddNoteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-6 space-y-4">
+      {showAddNoteModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150 overflow-hidden">
+          <div className="w-full max-w-md max-h-[88dvh] sm:max-h-[85vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-5 sm:p-6 space-y-4 animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-gray-800">
               <h3 className="text-base font-bold font-display text-gray-900 dark:text-white">
                 Colar Recado no Mural da Geladeira
@@ -848,7 +849,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Phase 5: Cleaning Sprint Modal */}

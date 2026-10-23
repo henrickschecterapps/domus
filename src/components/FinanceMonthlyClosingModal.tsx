@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import {
   generateMonthlyWhatsAppReport,
@@ -24,7 +25,18 @@ export const FinanceMonthlyClosingModal: React.FC<FinanceMonthlyClosingModalProp
   const [copied, setCopied] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
+  if (!isOpen || typeof document === 'undefined') return null;
 
   const monthLabel = formatMonthKeyLabel(monthKey);
   const monthExpenses = filterExpensesByMonth(expenses, monthKey);
@@ -59,9 +71,9 @@ export const FinanceMonthlyClosingModal: React.FC<FinanceMonthlyClosingModalProp
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="w-full max-w-lg bg-white dark:bg-gray-900 rounded-3xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-6 space-y-4 animate-u-scale">
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150 overflow-hidden">
+      <div className="w-full max-w-lg max-h-[88dvh] sm:max-h-[85vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-3xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-5 sm:p-6 space-y-4 animate-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-brand-50 dark:bg-brand-950/70 text-brand-600 dark:text-brand-400 flex items-center justify-center">
@@ -152,6 +164,7 @@ export const FinanceMonthlyClosingModal: React.FC<FinanceMonthlyClosingModalProp
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

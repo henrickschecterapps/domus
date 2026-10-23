@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import {
   ShieldCheck,
@@ -1147,8 +1148,8 @@ VITE_FIREBASE_APP_ID=1:000000000000:web:abcdef123456`}
       </div>
 
       {/* Modal: Adicionar Morador */}
-      {isAddMemberOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+      {isAddMemberOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150 overflow-hidden">
           <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-6 space-y-4 animate-in zoom-in-95 duration-150">
             <h3 className="text-base font-bold font-display text-gray-900 dark:text-white">
               Adicionar Morador
@@ -1211,12 +1212,13 @@ VITE_FIREBASE_APP_ID=1:000000000000:web:abcdef123456`}
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal: Adicionar/Editar Cômodo */}
-      {isAddRoomOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+      {isAddRoomOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150 overflow-hidden">
           <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-6 space-y-4 animate-in zoom-in-95 duration-150">
             <h3 className="text-base font-bold font-display text-gray-900 dark:text-white">
               {editingRoomId ? 'Editar Cômodo' : 'Novo Cômodo'}
@@ -1276,7 +1278,8 @@ VITE_FIREBASE_APP_ID=1:000000000000:web:abcdef123456`}
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Global Auth / Switch House Modal */}
@@ -1296,8 +1299,8 @@ VITE_FIREBASE_APP_ID=1:000000000000:web:abcdef123456`}
       />
 
       {/* Modal: Adicionar Contato de Emergência */}
-      {isAddContactOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+      {isAddContactOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150 overflow-hidden">
           <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-6 space-y-4 animate-in zoom-in-95 duration-150">
             <h3 className="text-base font-bold font-display text-gray-900 dark:text-white">
               Novo Contato Útil ou Emergência
@@ -1381,12 +1384,13 @@ VITE_FIREBASE_APP_ID=1:000000000000:web:abcdef123456`}
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal: Adicionar Recompensa do Lar */}
-      {isAddRewardOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+      {isAddRewardOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-150 overflow-hidden">
           <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-u-xl border border-gray-200 dark:border-gray-800 p-6 space-y-4 animate-in zoom-in-95 duration-150">
             <h3 className="text-base font-bold font-display text-gray-900 dark:text-white">
               Nova Recompensa do Lar
@@ -1452,7 +1456,8 @@ VITE_FIREBASE_APP_ID=1:000000000000:web:abcdef123456`}
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

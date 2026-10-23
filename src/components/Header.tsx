@@ -58,16 +58,16 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-extrabold font-display text-gray-900 dark:text-white tracking-tight leading-none truncate">
+              <h1 className="text-sm xs:text-base sm:text-lg font-extrabold font-display text-gray-900 dark:text-white tracking-tight leading-none truncate max-w-[120px] xs:max-w-[180px] sm:max-w-none">
                 {house.name}
               </h1>
               {isFirebaseConnected ? (
                 <Badge variant="success" size="sm" dot title="Sincronização em Nuvem Firebase Firestore Ativa">
-                  Nuvem Ativa
+                  <span className="hidden xs:inline">Nuvem Ativa</span>
                 </Badge>
               ) : (
                 <Badge variant="brand" size="sm" dot title="Modo Local-First (Offline)">
-                  Local-First
+                  <span className="hidden xs:inline">Local-First</span>
                 </Badge>
               )}
             </div>
@@ -136,7 +136,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
               onClick={() => setShowUserMenu(!showUserMenu)}
               className="flex items-center gap-2.5 p-1 pl-3 bg-white dark:bg-gray-800/90 hover:bg-gray-50 dark:hover:bg-gray-700/60 border border-gray-200/80 dark:border-gray-700/80 hover:border-brand-300/60 dark:hover:border-brand-700/60 rounded-xl transition-all duration-200 active:scale-95 shadow-u-xs h-9"
             >
-              <div className="flex flex-col text-right">
+              <div className="hidden sm:flex flex-col text-right">
                 <span className="text-xs font-bold text-gray-800 dark:text-gray-200 max-w-[100px] truncate leading-tight">
                   {currentUser.displayName}
                 </span>
