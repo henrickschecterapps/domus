@@ -63,6 +63,8 @@ export interface House {
   rewards?: HouseReward[];
   notes?: HouseNote[];
   budget?: HouseBudget;
+  settlementLogs?: SettlementLog[];
+  monthlyClosings?: MonthlyClosing[];
 }
 
 export interface HouseBudget {
@@ -215,6 +217,8 @@ export interface Pet {
   dutySchedule?: PetDutySchedule;
   duties?: PetDailyDuty[];
   reminders?: PetCustomReminder[];
+  treatments?: PetTreatment[];
+  documents?: PetDocument[];
 }
 
 export type PantryCategory = 'mercearia' | 'limpeza' | 'pet' | 'hortifruti' | 'refrigerados';
@@ -300,3 +304,57 @@ export interface HouseEvent {
 
 export type AppTheme = 'dark' | 'light' | 'system';
 
+
+export interface SettlementLog {
+  id: string;
+  fromUserId: string;
+  fromUserName: string;
+  toUserId: string;
+  toUserName: string;
+  amount: number;
+  settledAt: number;
+  proofUrl?: string;
+  monthKey: string;
+  notes?: string;
+}
+
+export interface MonthlyClosing {
+  monthKey: string;
+  closedAt: number;
+  closedByUserId: string;
+  closedByName: string;
+  totalSpend: number;
+  totalExpensesCount: number;
+  summaryText: string;
+}
+
+export interface PetTreatmentDose {
+  time: string;
+  administeredAt?: number;
+  administeredByUserId?: string;
+  administeredByName?: string;
+}
+
+export interface PetTreatment {
+  id: string;
+  petId: string;
+  medName: string;
+  dosage: string;
+  frequencyHours: number;
+  startDate: number;
+  durationDays: number;
+  dailyTimes: string[];
+  history: Record<string, PetTreatmentDose[]>;
+  isActive: boolean;
+  notes?: string;
+}
+
+export interface PetDocument {
+  id: string;
+  petId: string;
+  title: string;
+  category: 'vaccine_card' | 'exam' | 'prescription' | 'other';
+  fileUrl: string;
+  createdAt: number;
+  notes?: string;
+}

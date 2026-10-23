@@ -14,6 +14,10 @@ import {
   getDaysOverdueOrRemaining,
   calculateOverdueDebt,
   calculateFixedAndVariableTotals,
+  getAvailableMonthKeys,
+  filterExpensesByMonth,
+  formatMonthKeyLabel,
+  getExpenseMonthKey,
 } from '../utils/financeMath';
 import {
   Wallet,
@@ -44,8 +48,12 @@ import {
   Clock,
   Layers,
   ArrowUpRight,
+  Share2,
+  ImageIcon,
 } from 'lucide-react';
 import { BottomSheet } from '../components/BottomSheet';
+import { FinanceSettlementProofModal } from '../components/FinanceSettlementProofModal';
+import { FinanceMonthlyClosingModal } from '../components/FinanceMonthlyClosingModal';
 import { Button } from '../components/untitled/Button';
 import { Badge } from '../components/untitled/Badge';
 import { triggerHaptic } from '../utils/haptics';
@@ -127,13 +135,22 @@ export const FinanceView: React.FC = () => {
   // Report Modal State
   const [showReportModal, setShowReportModal] = useState(false);
 
+  // Phase 1: Monthly Navigation & Proof
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string>(() => getExpenseMonthKey(Date.now()));
+  const [proofSettlement, setProofSettlement] = useState<SettlementTransfer | null>(null);
+  const [showMonthlyClosingModal, setShowMonthlyClosingModal] = useState(false);
+  const [showSettlementHistory, setShowSettlementHistory] = useState(false);
+
+  const availableMonthKeys = getAvailableMonthKeys(expenses);
+  const displayedExpenses = filterExpensesByMonth(expenses, selectedMonthKey);
+
   const now = Date.now();
   const overdueDebt = calculateOverdueDebt(expenses, now);
   const natureTotals = calculateFixedAndVariableTotals(expenses);
 
-  // Financial calculations
+  // Financial calculations (filtered by selected month)
   const { balances, settlements, totalHouseSpend } = calculateFinancialBalances(
-    expenses,
+    displayedExpenses,
     members
   );
 
@@ -493,6 +510,49 @@ export const FinanceView: React.FC = () => {
             Nova Despesa
           </Button>
         </div>
+      </div>
+
+
+      {/* Phase 1: Monthly Period Navigator & WhatsApp Closing Button */}
+      <div className="u-card-interactive p-3.5 sm:p-4 rounded-2xl bg-white/95 dark:bg-gray-900/95 border border-gray-200/80 dark:border-gray-800/80 shadow-u-xs flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-1 sm:pb-0">
+          <span className="text-[10px] font-mono font-bold uppercase text-gray-400 dark:text-gray-500 tracking-wider flex items-center gap-1.5 flex-shrink-0">
+            <Calendar className="w-3.5 h-3.5 text-brand-500" />
+            PERÍODO:
+          </span>
+          {availableMonthKeys.map((mKey) => (
+            <button
+              key={mKey}
+              onClick={() => setSelectedMonthKey(mKey)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex-shrink-0 ${
+                selectedMonthKey === mKey
+                  ? 'bg-brand-600 text-white shadow-u-xs scale-102'
+                  : 'bg-gray-100/80 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200/60 dark:hover:bg-gray-700 border border-gray-200/60 dark:border-gray-700/60'
+              }`}
+            >
+              {formatMonthKeyLabel(mKey)}
+            </button>
+          ))}
+          <button
+            onClick={() => setSelectedMonthKey('all')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex-shrink-0 ${
+              selectedMonthKey === 'all'
+                ? 'bg-brand-600 text-white shadow-u-xs'
+                : 'bg-gray-100/80 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 hover:bg-gray-200/60 dark:hover:bg-gray-700 border border-gray-200/60 dark:border-gray-700/60'
+            }`}
+          >
+            Todos os Lançamentos
+          </button>
+        </div>
+
+        <button
+          onClick={() => setShowMonthlyClosingModal(true)}
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-brand-600 via-brand-500 to-violet-600 hover:from-brand-700 hover:to-violet-700 text-white text-xs font-bold shadow-u-glow transition-all active:scale-95 ml-auto"
+          title="Gerar fechamento consolidado e compartilhar no grupo do WhatsApp"
+        >
+          <Share2 className="w-3.5 h-3.5" />
+          <span>Fechamento do Mês (WhatsApp)</span>
+        </button>
       </div>
 
       {/* Critical Alert Banner: Dívidas da Casa (Boletos Vencidos) */}
@@ -897,6 +957,15 @@ export const FinanceView: React.FC = () => {
 
                     {/* Quick action buttons: Open PIX QR Code Modal or WhatsApp Reminder */}
                     <div className="flex items-center justify-end gap-2 pt-1 border-t border-gray-200/40 dark:border-gray-800/60">
+                                            <button
+                        onClick={() => setProofSettlement(settlement)}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-semibold text-[11px] shadow-u-xs transition-all active:scale-95"
+                        title="Registrar quitação com anexo de comprovante bancário"
+                      >
+                        <Check className="w-3 h-3 text-white" />
+                        <span>Quitar com Comprovante</span>
+                      </button>
+
                       {hasPix && (
                         <button
                           onClick={() => setActivePixSettlement(settlement)}
@@ -2253,6 +2322,21 @@ export const FinanceView: React.FC = () => {
           </div>
         </div>
       )}
+    
+      {/* Phase 1 Modals */}
+      <FinanceSettlementProofModal
+        isOpen={!!proofSettlement}
+        settlement={proofSettlement}
+        onClose={() => setProofSettlement(null)}
+        monthKey={selectedMonthKey !== 'all' ? selectedMonthKey : undefined}
+      />
+
+      <FinanceMonthlyClosingModal
+        isOpen={showMonthlyClosingModal}
+        onClose={() => setShowMonthlyClosingModal(false)}
+        monthKey={selectedMonthKey !== 'all' ? selectedMonthKey : getExpenseMonthKey(Date.now())}
+      />
+
     </div>
   );
 };

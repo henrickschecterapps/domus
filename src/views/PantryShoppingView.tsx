@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { SegmentedControl } from '../components/SegmentedControl';
 import { BottomSheet } from '../components/BottomSheet';
+import { ShoppingStoreModeModal } from '../components/ShoppingStoreModeModal';
 import { formatCurrencyBRL } from '../utils/financeMath';
 import { Badge } from '../components/untitled/Badge';
 import { Button } from '../components/untitled/Button';
@@ -54,6 +55,7 @@ export const PantryShoppingView: React.FC = () => {
     showToast,
   } = useApp();
 
+  const [showStoreMode, setShowStoreMode] = useState(false);
   const [activeTab, setActiveTab] = useState<'shopping' | 'pantry'>('shopping');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedAisle, setSelectedAisle] = useState<string>('all');
@@ -164,6 +166,15 @@ export const PantryShoppingView: React.FC = () => {
         />
 
         <button
+          onClick={() => setShowStoreMode(true)}
+          className="h-10 px-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white flex items-center gap-1.5 transition-all shadow-u-sm active:scale-95 flex-shrink-0 text-xs font-extrabold"
+          title="Abrir tela cheia para usar no supermercado com uma mão"
+        >
+          <ShoppingCart className="w-4 h-4" />
+          <span className="hidden sm:inline">Modo Mercado</span>
+        </button>
+
+        <button
           onClick={() => setShowAddItemSheet(true)}
           className="u-btn-shine h-10 px-4 rounded-xl bg-gradient-to-b from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white flex items-center gap-1.5 transition-all duration-200 ease-spring shadow-u-glow hover:shadow-u-glow-lg active:scale-95 flex-shrink-0 text-xs font-bold"
           title={activeTab === 'pantry' ? 'Novo item na despensa' : 'Novo item de compra'}
@@ -195,6 +206,13 @@ export const PantryShoppingView: React.FC = () => {
           </div>
 
           <div className="relative z-10 flex items-center gap-2">
+            <button
+              onClick={() => setShowStoreMode(true)}
+              className="px-4 py-2 rounded-2xl bg-white hover:bg-gray-100 text-gray-900 font-extrabold text-xs shadow-u-md flex items-center gap-2 transition-all active:scale-95"
+            >
+              <ShoppingCart className="w-4 h-4 text-emerald-600" />
+              <span>Iniciar Modo Mercado</span>
+            </button>
             <Badge variant="brand" size="md" dot>
               {pendingShoppingCount} a comprar
             </Badge>
@@ -593,6 +611,11 @@ export const PantryShoppingView: React.FC = () => {
           </div>
         </form>
       </BottomSheet>
+      {/* Phase 2: Modo Mercado Imersivo */}
+      <ShoppingStoreModeModal
+        isOpen={showStoreMode}
+        onClose={() => setShowStoreMode(false)}
+      />
     </div>
   );
 };

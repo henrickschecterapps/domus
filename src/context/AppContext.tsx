@@ -12,6 +12,12 @@ import {
   ShoppingItem,
   Expense,
   HouseBudget,
+  SettlementLog,
+  MonthlyClosing,
+  PetTreatment,
+  PetTreatmentDose,
+  PetDocument,
+  ExpenseCategory,
   MedicalRecord,
   EmergencyContact,
   HouseReward,
@@ -59,6 +65,7 @@ import {
 } from '../services/authService';
 import { triggerHaptic } from '../utils/haptics';
 import { playSoftPop, playSuccessChime, playCoinSound } from '../utils/soundEffects';
+import { generateMonthlyWhatsAppReport, getExpenseMonthKey, filterExpensesByMonth } from '../utils/financeMath';
 
 interface ToastNotification {
   id: string;
@@ -121,6 +128,17 @@ interface AppContextType {
   moveShoppingItemToPantry: (id: string) => void;
   deleteShoppingItem: (id: string) => void;
   clearBoughtItems: () => void;
+  // All-in-One Capabilities
+  settlementLogs: SettlementLog[];
+  monthlyClosings: MonthlyClosing[];
+  settleUpWithProof: (fromUserId: string, toUserId: string, amount: number, proofUrl?: string, monthKey?: string, notes?: string) => void;
+  closeMonth: (monthKey: string) => MonthlyClosing;
+  checkoutShoppingTrip: (amount: number, category?: ExpenseCategory, moveBoughtToPantry?: boolean) => void;
+  addPetTreatment: (petId: string, treatment: Omit<PetTreatment, 'id' | 'history'>) => void;
+  administerPetDose: (petId: string, treatmentId: string, doseTime: string) => { success: boolean; message: string };
+  deletePetTreatment: (petId: string, treatmentId: string) => void;
+  addPetDocument: (petId: string, doc: Omit<PetDocument, 'id' | 'createdAt'>) => void;
+  deletePetDocument: (petId: string, docId: string) => void;
   // Expense actions
   addExpense: (expense: Omit<Expense, 'id'>, totalInstallments?: number) => void;
   updateExpense: (id: string, updates: Partial<Expense>) => void;
@@ -2093,6 +2111,314 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Recompensa removida.', 'info');
   };
 
+
+  // All-in-One: Settle up with optional proof photo
+  const settleUpWithProof = (
+    fromUserId: string,
+    toUserId: string,
+    amount: number,
+    proofUrl?: string,
+    monthKey?: string,
+    notes?: string
+  ) => {
+    lastLocalMutationTimestampRef.current = Date.now();
+    const fromMember = members.find((m) => m.userId === fromUserId);
+    const toMember = members.find((m) => m.userId === toUserId);
+    const resolvedMonthKey = monthKey || getExpenseMonthKey(Date.now());
+
+    const newLog: SettlementLog = {
+      id: `settle_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      fromUserId,
+      fromUserName: fromMember?.displayName || 'Morador',
+      toUserId,
+      toUserName: toMember?.displayName || 'Morador',
+      amount,
+      settledAt: Date.now(),
+      proofUrl,
+      monthKey: resolvedMonthKey,
+      notes,
+    };
+
+    setHouse((prev) => {
+      const updatedHouse: House = {
+        ...prev,
+        settlementLogs: [newLog, ...(prev.settlementLogs || [])],
+      };
+      saveToStorage('house', updatedHouse);
+      return updatedHouse;
+    });
+
+    playCoinSound(soundEnabled);
+    triggerHaptic('success');
+    fireCelebrationConfetti();
+    showToast(`Acerto de R$ ${amount.toFixed(2)} registrado com sucesso!`, 'success');
+  };
+
+  // All-in-One: Monthly closing with snapshot & WhatsApp report
+  const closeMonth = (monthKey: string): MonthlyClosing => {
+    lastLocalMutationTimestampRef.current = Date.now();
+    const monthExpenses = filterExpensesByMonth(expenses, monthKey);
+    const totalSpend = monthExpenses.reduce((acc: number, e: Expense) => acc + e.amount, 0);
+    const summaryText = generateMonthlyWhatsAppReport(monthKey, expenses, members, house.name);
+
+    const newClosing: MonthlyClosing = {
+      monthKey,
+      closedAt: Date.now(),
+      closedByUserId: currentUser.userId,
+      closedByName: currentUser.displayName,
+      totalSpend,
+      totalExpensesCount: monthExpenses.length,
+      summaryText,
+    };
+
+    setHouse((prev) => {
+      const existing = (prev.monthlyClosings || []).filter((c) => c.monthKey !== monthKey);
+      const updatedHouse: House = {
+        ...prev,
+        monthlyClosings: [newClosing, ...existing],
+      };
+      saveToStorage('house', updatedHouse);
+      return updatedHouse;
+    });
+
+    // Mark active expenses of that month as settled
+    setExpenses((prev) => {
+      const updated = prev.map((e) => {
+        if (getExpenseMonthKey(e.date) === monthKey) {
+          return { ...e, isSettled: true };
+        }
+        return e;
+      });
+      saveToStorage('expenses', updated);
+      return updated;
+    });
+
+    playCoinSound(soundEnabled);
+    triggerHaptic('success');
+    fireCelebrationConfetti();
+    showToast(`Fechamento do mês ${monthKey} concluído!`, 'success');
+    return newClosing;
+  };
+
+  // All-in-One: Checkout shopping trip with automatic finance & pantry sync
+  const checkoutShoppingTrip = (
+    amount: number,
+    category: ExpenseCategory = 'supermercado',
+    moveBoughtToPantry: boolean = true
+  ) => {
+    lastLocalMutationTimestampRef.current = Date.now();
+
+    if (amount > 0) {
+      addExpense({
+        description: 'Compras de Supermercado (Lista)',
+        amount,
+        paidByUserId: currentUser.userId,
+        splitAmongUserIds: members.map((m) => m.userId),
+        date: Date.now(),
+        category,
+        isSettled: false,
+        nature: 'variable',
+      });
+    }
+
+    if (moveBoughtToPantry) {
+      const bought = shoppingItems.filter((i) => i.isBought);
+      if (bought.length > 0) {
+        setPantryItems((prevPantry) => {
+          let updated = [...prevPantry];
+          bought.forEach((item) => {
+            const existingIdx = updated.findIndex(
+              (p) => p.name.toLowerCase().trim() === item.name.toLowerCase().trim()
+            );
+            if (existingIdx >= 0) {
+              updated[existingIdx] = {
+                ...updated[existingIdx],
+                currentQuantity: updated[existingIdx].currentQuantity + item.quantity,
+              };
+            } else {
+              updated.push({
+                id: `pantry_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                name: item.name,
+                category: (item.category as any) || 'mercearia',
+                currentQuantity: item.quantity,
+                minQuantity: 1,
+                unit: (item.unit as any) || 'un',
+                autoAddToShopping: true,
+              });
+            }
+          });
+          saveToStorage('pantryItems', updated);
+          return updated;
+        });
+
+        // Clear bought items
+        setShoppingItems((prev) => {
+          const remaining = prev.filter((i) => !i.isBought);
+          saveToStorage('shoppingItems', remaining);
+          return remaining;
+        });
+      }
+    }
+
+    playCoinSound(soundEnabled);
+    triggerHaptic('success');
+    fireCelebrationConfetti();
+    showToast('Compras finalizadas! Despesa registrada e despensa abastecida.', 'success');
+  };
+
+  // All-in-One: Pet Treatments with double-dose safety
+  const addPetTreatment = (petId: string, treatment: Omit<PetTreatment, 'id' | 'history'>) => {
+    lastLocalMutationTimestampRef.current = Date.now();
+    const newId = `treat_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const newTreatment: PetTreatment = {
+      ...treatment,
+      id: newId,
+      history: {},
+    };
+
+    setPets((prev) => {
+      const updated = prev.map((p) => {
+        if (p.id === petId) {
+          return {
+            ...p,
+            treatments: [...(p.treatments || []), newTreatment],
+          };
+        }
+        return p;
+      });
+      saveToStorage('pets', updated);
+      return updated;
+    });
+
+    showToast(`Tratamento de ${treatment.medName} cadastrado!`, 'success');
+  };
+
+  const administerPetDose = (
+    petId: string,
+    treatmentId: string,
+    doseTime: string
+  ): { success: boolean; message: string } => {
+    lastLocalMutationTimestampRef.current = Date.now();
+    const today = new Date();
+    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    const targetPet = pets.find((p) => p.id === petId);
+    const targetTreatment = targetPet?.treatments?.find((t) => t.id === treatmentId);
+
+    if (!targetTreatment) {
+      return { success: false, message: 'Tratamento não encontrado' };
+    }
+
+    const todayDoses = targetTreatment.history?.[dateStr] || [];
+    const alreadyAdministered = todayDoses.find((d) => d.time === doseTime && d.administeredAt);
+
+    if (alreadyAdministered) {
+      return {
+        success: false,
+        message: `Atenção: Esta dose de ${doseTime} já foi administrada por ${alreadyAdministered.administeredByName || 'outro morador'} às ${new Date(alreadyAdministered.administeredAt!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`,
+      };
+    }
+
+    const newDoseRecord: PetTreatmentDose = {
+      time: doseTime,
+      administeredAt: Date.now(),
+      administeredByUserId: currentUser.userId,
+      administeredByName: currentUser.displayName,
+    };
+
+    const updatedTodayDoses = [...todayDoses.filter((d) => d.time !== doseTime), newDoseRecord];
+
+    setPets((prev) => {
+      const updated = prev.map((p) => {
+        if (p.id === petId) {
+          const updatedTreatments = (p.treatments || []).map((t) => {
+            if (t.id === treatmentId) {
+              return {
+                ...t,
+                history: {
+                  ...(t.history || {}),
+                  [dateStr]: updatedTodayDoses,
+                },
+              };
+            }
+            return t;
+          });
+          return { ...p, treatments: updatedTreatments };
+        }
+        return p;
+      });
+      saveToStorage('pets', updated);
+      return updated;
+    });
+
+    playSuccessChime(soundEnabled);
+    triggerHaptic('success');
+    showToast(`Dose de ${doseTime} registrada por ${currentUser.displayName}!`, 'success');
+    return { success: true, message: 'Dose registrada com sucesso!' };
+  };
+
+  const deletePetTreatment = (petId: string, treatmentId: string) => {
+    lastLocalMutationTimestampRef.current = Date.now();
+    setPets((prev) => {
+      const updated = prev.map((p) => {
+        if (p.id === petId) {
+          return {
+            ...p,
+            treatments: (p.treatments || []).filter((t) => t.id !== treatmentId),
+          };
+        }
+        return p;
+      });
+      saveToStorage('pets', updated);
+      return updated;
+    });
+    showToast('Tratamento removido', 'info');
+  };
+
+  // Pet Health Document & Vaccine Card
+  const addPetDocument = (petId: string, doc: Omit<PetDocument, 'id' | 'createdAt'>) => {
+    lastLocalMutationTimestampRef.current = Date.now();
+    const newDoc: PetDocument = {
+      ...doc,
+      id: `doc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      createdAt: Date.now(),
+    };
+
+    setPets((prev) => {
+      const updated = prev.map((p) => {
+        if (p.id === petId) {
+          return {
+            ...p,
+            documents: [newDoc, ...(p.documents || [])],
+          };
+        }
+        return p;
+      });
+      saveToStorage('pets', updated);
+      return updated;
+    });
+
+    showToast(`Documento "${doc.title}" anexado com sucesso!`, 'success');
+  };
+
+  const deletePetDocument = (petId: string, docId: string) => {
+    lastLocalMutationTimestampRef.current = Date.now();
+    setPets((prev) => {
+      const updated = prev.map((p) => {
+        if (p.id === petId) {
+          return {
+            ...p,
+            documents: (p.documents || []).filter((d) => d.id !== docId),
+          };
+        }
+        return p;
+      });
+      saveToStorage('pets', updated);
+      return updated;
+    });
+    showToast('Documento removido', 'info');
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -2145,6 +2471,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         moveShoppingItemToPantry,
         deleteShoppingItem,
         clearBoughtItems,
+        settlementLogs: house.settlementLogs || [],
+        monthlyClosings: house.monthlyClosings || [],
+        settleUpWithProof,
+        closeMonth,
+        checkoutShoppingTrip,
+        addPetTreatment,
+        administerPetDose,
+        deletePetTreatment,
+        addPetDocument,
+        deletePetDocument,
         addExpense,
         updateExpense,
         toggleExpenseSettled,

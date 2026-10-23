@@ -34,6 +34,8 @@ import {
 } from 'lucide-react';
 import { DayOfWeek, MedicalRecord, Pet, PetCustomReminder, PetDutyPeriod } from '../types';
 import { Button } from '../components/untitled/Button';
+import { PetTreatmentsSection } from '../components/PetTreatmentsSection';
+import { PetDocumentsSection } from '../components/PetDocumentsSection';
 import { Badge } from '../components/untitled/Badge';
 
 // Photo presets for easy and fast pet creation
@@ -1398,6 +1400,13 @@ export const PetView: React.FC = () => {
           )}
         </div>
       </div>
+
+
+      {/* Phase 4: Tratamentos Ativos & Prevenção de Dose Dupla */}
+      <PetTreatmentsSection pet={pet} />
+
+      {/* Phase 4: Carteirinha Digital & Galeria de Documentos */}
+      <PetDocumentsSection pet={pet} />
 
       {/* 8. Emergência Veterinária & Histórico de Peso (Grid 2 cols) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

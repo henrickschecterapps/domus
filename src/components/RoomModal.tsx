@@ -218,6 +218,20 @@ export const RoomModal: React.FC<RoomModalProps> = ({ room, onClose }) => {
                           ? `Por ${chore.lastCompletedBy.displayName} (${humanizeTimestamp(chore.lastCompletedAt, now)})`
                           : humanizeTimestamp(chore.lastCompletedAt, now)}
                       </p>
+                      {/* Rotation Badge: Phase 3 */}
+                      {chore.assignedTo && (
+                        <div className="mt-1 flex items-center gap-1.5">
+                          {chore.assignedTo === currentUser.userId ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-brand-500/20 text-brand-700 dark:text-brand-300 border border-brand-500/40">
+                              ⭐ Sua Vez Esta Semana
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                              👤 Vez de: {members.find((m) => m.userId === chore.assignedTo)?.displayName || 'Morador'}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div className="text-right flex-shrink-0">

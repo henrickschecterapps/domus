@@ -1,13 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { QuickCleanWidget } from '../components/QuickCleanWidget';
 import { PetStatusPill } from '../components/PetStatusPill';
 import { LeaderboardWidget } from '../components/LeaderboardWidget';
 import { CalendarWidget } from '../components/CalendarWidget';
 import { CalendarModal } from '../components/CalendarModal';
+import { CleaningSprintModal } from '../components/CleaningSprintModal';
+import { requestNotificationPermission, getNotificationPermission, checkAndTriggerHouseAlerts } from '../utils/notifications';
+import { getExpensePaymentStatus, formatCurrencyBRL } from '../utils/financeMath';
 import {
   Activity,
   Sparkles,
+  Sun,
+  Bell,
+  Zap,
   AlertTriangle,
   AlertCircle,
   CheckCircle2,
@@ -83,6 +89,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
     chores,
     choreLogs,
     currentUser,
+    expenses,
+    pet,
+    members,
     addHouseNote,
     deleteHouseNote,
     togglePinHouseNote,
@@ -94,12 +103,75 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
   const [noteContent, setNoteContent] = useState('');
   const [noteColor, setNoteColor] = useState<HouseNote['color']>('yellow');
   const [copiedWifi, setCopiedWifi] = useState(false);
+  const [showSprintModal, setShowSprintModal] = useState(false);
+  const [notifPermission, setNotifPermission] = useState<'granted' | 'denied' | 'default' | 'unsupported'>(() => getNotificationPermission());
+
+  const now = Date.now();
+  const todayDayOfWeek = new Date().getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6;
+  const petDutyUserId = pet?.dutySchedule?.todayOverrideUserId || pet?.dutySchedule?.weeklyAssignment?.[todayDayOfWeek];
+  const petDutyMember = members.find((m) => m.userId === petDutyUserId);
+  const isMyPetDutyToday = petDutyUserId === currentUser.userId;
 
   const cleanRooms = rooms.filter((r) => r.statusLevel === 'clean').length;
   const warningRooms = rooms.filter((r) => r.statusLevel === 'warning').length;
   const urgentRooms = rooms.filter((r) => r.statusLevel === 'urgent').length;
-
   const clampedScore = Math.max(0, Math.min(100, Math.round(house.houseScore)));
+  const billsDueToday = expenses.filter((e) => !e.isSettled && getExpensePaymentStatus(e, now) === 'due_today');
+  const overdueBills = expenses.filter((e) => !e.isSettled && getExpensePaymentStatus(e, now) === 'overdue');
+
+  useEffect(() => {
+    checkAndTriggerHouseAlerts(
+      house.name,
+      billsDueToday.length,
+      overdueBills.length,
+      isMyPetDutyToday,
+      pet?.name || 'Pet',
+      urgentRooms
+    );
+  }, [house.name, billsDueToday.length, overdueBills.length, isMyPetDutyToday, pet?.name, urgentRooms]);
+
+  const handleToggleNotifications = async () => {
+    const granted = await requestNotificationPermission();
+    setNotifPermission(granted ? 'granted' : 'denied');
+    if (granted) {
+      showToast('Notificações no navegador ativadas com sucesso!', 'success');
+    } else {
+      showToast('Permissão de notificações não concedida.', 'warning');
+    }
+  };
+
+  const handleShareBriefingWhatsApp = () => {
+    const dateFormatted = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+    let msg = `☀️ *BOM DIA, CASA! • RESUMO DO DIA* ☀️\n`;
+    msg += `📍 *Residência:* ${house.name}\n`;
+    msg += `📅 *${dateFormatted}*\n\n`;
+
+    msg += `💳 *Finanças & Boletos:*\n`;
+    if (billsDueToday.length > 0) {
+      msg += `• ⚠️ ${billsDueToday.length} conta(s) vencem HOJE: ${billsDueToday.map((b) => `${b.description} (${formatCurrencyBRL(b.amount)})`).join(', ')}\n`;
+    } else if (overdueBills.length > 0) {
+      msg += `• 🚨 ${overdueBills.length} conta(s) em atraso na casa.\n`;
+    } else {
+      msg += `• ✨ Nenhuma conta vencendo hoje! Tudo em dia.\n`;
+    }
+
+    msg += `\n🐾 *Área Pet (${pet?.name || 'Pet'}):*\n`;
+    if (petDutyMember) {
+      msg += `• Responsável de hoje: *${petDutyMember.displayName}* 🐶\n`;
+    } else {
+      msg += `• Turno livre / rotativo da casa.\n`;
+    }
+
+    msg += `\n🧹 *Higiene & Cômodos:*\n`;
+    msg += `• Score da Casa: *${clampedScore}/100* (${cleanRooms} limpos, ${urgentRooms} urgentes)\n\n`;
+    msg += `📲 *Acompanhe tudo no Domus App:* https://henrickschecterapps.github.io/domus/\n`;
+    msg += `Tenham um ótimo dia! ✨`;
+
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+  };
+
+
+
   const ringSize = 112;
   const ringStroke = 9;
   const ringRadius = (ringSize - ringStroke) / 2;
@@ -312,8 +384,70 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
         </div>
       </div>
 
+
+      {/* Phase 5: Morning Briefing Card & WhatsApp Broadcast */}
+      <div className="u-card-interactive p-4 sm:p-5 rounded-3xl bg-white/95 dark:bg-gray-900/95 border border-gray-200/80 dark:border-gray-800/80 shadow-u-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-start sm:items-center gap-3.5">
+          <div className="w-10 h-10 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center justify-center flex-shrink-0 shadow-u-xs">
+            <Sun className="w-5 h-5 stroke-[2.2]" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-extrabold text-gray-900 dark:text-white font-display">
+                Briefing Diário do Lar
+              </h3>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200/60">
+                {new Date().toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' })}
+              </span>
+            </div>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+              {billsDueToday.length > 0 ? `💳 ${billsDueToday.length} conta(s) a pagar hoje • ` : ''}
+              {petDutyMember ? `🐾 Turno do Pet: ${petDutyMember.displayName} • ` : ''}
+              {urgentRooms > 0 ? `🧹 ${urgentRooms} cômodo(s) urgente(s)` : '✨ Todos os cômodos em ordem'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleShareBriefingWhatsApp}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-success-600 hover:bg-success-700 text-white font-bold text-xs shadow-u-xs transition-all active:scale-95"
+            title="Enviar o resumo pronto no grupo do WhatsApp da casa"
+          >
+            <MessageCircle className="w-3.5 h-3.5" />
+            <span>Enviar no WhatsApp</span>
+          </button>
+
+          <button
+            onClick={handleToggleNotifications}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all active:scale-95 ${
+              notifPermission === 'granted'
+                ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 border-brand-200/60'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 border-gray-200 dark:border-gray-700'
+            }`}
+            title="Receber avisos de contas a vencer e turnos do pet"
+          >
+            <Bell className="w-3.5 h-3.5" />
+            <span>{notifPermission === 'granted' ? 'Notificações Ativas' : 'Ativar Notificações'}</span>
+          </button>
+        </div>
+      </div>
+
       {/* 1-Touch Quick Action Bar (Bento Pills) */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5">
+        <button
+          onClick={() => setShowSprintModal(true)}
+          className="u-card-interactive flex items-center gap-2.5 p-3 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 shadow-u-xs hover:shadow-u-md text-left transition-all active:scale-95"
+        >
+          <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center flex-shrink-0 shadow-u-xs">
+            <Zap className="w-4 h-4 fill-current" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-gray-900 dark:text-white truncate">Sprint 15 min</p>
+            <p className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold truncate">1.5x XP Bônus</p>
+          </div>
+        </button>
+
         <button
           onClick={() => onNavigateTab('cleaning')}
           className="u-card-interactive flex items-center gap-2.5 p-3 rounded-2xl bg-white/95 dark:bg-gray-900/95 border border-gray-200/80 dark:border-gray-800/80 shadow-u-xs hover:shadow-u-md text-left transition-all active:scale-95"
@@ -716,6 +850,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
           </div>
         </div>
       )}
+
+      {/* Phase 5: Cleaning Sprint Modal */}
+      <CleaningSprintModal isOpen={showSprintModal} onClose={() => setShowSprintModal(false)} />
 
       {/* Full Shared Calendar Modal */}
       <CalendarModal

@@ -4,13 +4,15 @@ import { RoomCard } from '../components/RoomCard';
 import { RoomModal } from '../components/RoomModal';
 import { Room, RoomStatusLevel } from '../types';
 import { calculateChoreUrgency } from '../utils/cleaningMath';
-import { Sparkles, Gift } from 'lucide-react';
+import { Sparkles, Gift, Zap, Star } from 'lucide-react';
+import { CleaningSprintModal } from '../components/CleaningSprintModal';
 import { SegmentedControl } from '../components/SegmentedControl';
 import { Badge } from '../components/untitled/Badge';
 
 export const CleaningView: React.FC = () => {
   const { rooms, chores, house, currentUser, claimHouseReward } = useApp();
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+  const [showSprintModal, setShowSprintModal] = useState(false);
   const [filter, setFilter] = useState<'all' | RoomStatusLevel>('all');
 
   const now = Date.now();
@@ -45,9 +47,19 @@ export const CleaningView: React.FC = () => {
               </p>
             </div>
           </div>
-          <Badge variant="brand" size="md" dot>
-            {rooms.length} Ambientes Mapeados
-          </Badge>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowSprintModal(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-brand-600 hover:from-amber-600 hover:to-brand-700 text-white font-extrabold text-xs shadow-u-glow transition-all active:scale-95"
+              title="Iniciar sprint de limpeza rápida de 15 minutos com bônus de XP"
+            >
+              <Zap className="w-4 h-4 fill-current" />
+              <span>Sprint Faxina 15m (1.5x XP)</span>
+            </button>
+            <Badge variant="brand" size="md" dot>
+              {rooms.length} Ambientes Mapeados
+            </Badge>
+          </div>
         </div>
 
         {/* Untitled UI Segmented Filter */}
@@ -133,6 +145,11 @@ export const CleaningView: React.FC = () => {
           onClose={() => setSelectedRoom(null)}
         />
       )}
+      {/* Phase 3: Sprint de Faxina Express */}
+      <CleaningSprintModal
+        isOpen={showSprintModal}
+        onClose={() => setShowSprintModal(false)}
+      />
     </div>
   );
 };

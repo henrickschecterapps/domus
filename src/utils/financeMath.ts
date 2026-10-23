@@ -579,3 +579,118 @@ export function calculateFixedAndVariableTotals(expenses: Expense[]): NatureTota
     variablePending,
   };
 }
+
+/**
+ * Returns YYYY-MM string for a given timestamp.
+ */
+export function getExpenseMonthKey(timestamp: number): string {
+  const d = new Date(timestamp);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
+const MONTH_NAMES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+];
+
+/**
+ * Formats "YYYY-MM" to "Mês AAAA" (e.g. "Outubro 2026").
+ */
+export function formatMonthKeyLabel(monthKey: string): string {
+  if (!monthKey || monthKey === 'all') return 'Todos os Períodos';
+  const [yearStr, monthStr] = monthKey.split('-');
+  const monthIdx = parseInt(monthStr, 10) - 1;
+  const monthName = MONTH_NAMES[monthIdx] || monthStr;
+  return `${monthName} ${yearStr}`;
+}
+
+/**
+ * Returns sorted list of unique month keys present in expenses plus current month.
+ */
+export function getAvailableMonthKeys(expenses: Expense[], currentTimestamp = Date.now()): string[] {
+  const currentKey = getExpenseMonthKey(currentTimestamp);
+  const set = new Set<string>();
+  set.add(currentKey);
+
+  expenses.forEach((e) => {
+    if (e.date) {
+      set.add(getExpenseMonthKey(e.date));
+    }
+  });
+
+  return Array.from(set).sort((a, b) => b.localeCompare(a));
+}
+
+/**
+ * Filters expenses by specific month key ("YYYY-MM") or returns all if 'all'.
+ */
+export function filterExpensesByMonth(expenses: Expense[], monthKey: string | 'all'): Expense[] {
+  if (monthKey === 'all') return expenses;
+  return expenses.filter((e) => getExpenseMonthKey(e.date) === monthKey);
+}
+
+/**
+ * Generates formatted WhatsApp text for monthly closing summary.
+ */
+export function generateMonthlyWhatsAppReport(
+  monthKey: string,
+  expenses: Expense[],
+  members: HouseMember[],
+  houseName: string
+): string {
+  const monthLabel = formatMonthKeyLabel(monthKey);
+  const filtered = filterExpensesByMonth(expenses, monthKey);
+  const total = filtered.reduce((acc, e) => acc + e.amount, 0);
+
+  const catTotals: Record<string, number> = {
+    supermercado: 0,
+    contas: 0,
+    casa: 0,
+    pet: 0,
+  };
+
+  filtered.forEach((e) => {
+    if (catTotals[e.category] !== undefined) {
+      catTotals[e.category] += e.amount;
+    } else {
+      catTotals[e.category] = e.amount;
+    }
+  });
+
+  const { balances, settlements } = calculateFinancialBalances(filtered, members);
+
+  let msg = `🏠 *DOMUS • FECHAMENTO DO MÊS DE ${monthLabel.toUpperCase()}*\n`;
+  msg += `📍 *Residência:* ${houseName}\n`;
+  msg += `💰 *Total Gasto no Mês:* ${formatCurrencyBRL(total)} (${filtered.length} lançamentos)\n\n`;
+
+  msg += `📊 *Divisão por Categoria:*\n`;
+  if (catTotals.supermercado > 0) msg += `🛒 Supermercado: ${formatCurrencyBRL(catTotals.supermercado)}\n`;
+  if (catTotals.contas > 0) msg += `📄 Contas & Boletos: ${formatCurrencyBRL(catTotals.contas)}\n`;
+  if (catTotals.casa > 0) msg += `🛋️ Casa & Manutenção: ${formatCurrencyBRL(catTotals.casa)}\n`;
+  if (catTotals.pet > 0) msg += `🐾 Área Pet: ${formatCurrencyBRL(catTotals.pet)}\n`;
+
+  msg += `\n👥 *Balanço por Morador:*\n`;
+  members.forEach((m) => {
+    const b = balances[m.userId];
+    if (b) {
+      const netStr = b.net > 0 ? `recebe ${formatCurrencyBRL(b.net)}` : b.net < 0 ? `deve ${formatCurrencyBRL(Math.abs(b.net))}` : 'zerado';
+      msg += `• *${m.displayName}*: pagou ${formatCurrencyBRL(b.totalPaid)} (${netStr})\n`;
+    }
+  });
+
+  msg += `\n🤝 *Acertos Sugeridos (PIX):*\n`;
+  if (settlements.length === 0) {
+    msg += `✨ Todas as contas estão equilibradas! Nenhum acerto pendente.\n`;
+  } else {
+    settlements.forEach((s) => {
+      const toMember = members.find((m) => m.userId === s.toUserId);
+      const pixKeyStr = toMember?.pixKey ? ` (Chave PIX ${toMember.pixKeyType?.toUpperCase() || ''}: ${toMember.pixKey})` : '';
+      msg += `• *${s.fromName}* ➔ transfere *${formatCurrencyBRL(s.amount)}* para *${s.toName}*${pixKeyStr}\n`;
+    });
+  }
+
+  msg += `\n📲 *Fechamento registrado com sucesso no Domus App.* ✨`;
+  return msg;
+}
